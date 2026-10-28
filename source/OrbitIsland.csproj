@@ -1,0 +1,4 @@
+<Project Sdk="Microsoft.NET.Sdk">
+<PropertyGroup><OutputType>WinExe</OutputType><TargetFramework>net10.0-windows</TargetFramework><UseWPF>true</UseWPF><UseWindowsForms>true</UseWindowsForms><ImplicitUsings>disable</ImplicitUsings><Nullable>enable</Nullable><AssemblyName>OrbitIsland</AssemblyName><Version>0.2.0</Version></PropertyGroup>
+<ItemGroup><None Update="Broker.ps1" CopyToOutputDirectory="PreserveNewest" /></ItemGroup>
+</Project>

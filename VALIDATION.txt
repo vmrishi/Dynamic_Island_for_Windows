@@ -1,0 +1,17 @@
+Version 0.2 validation
+
+Cross-compiled on Linux with .NET SDK 10.0.403 targeting net10.0-windows/win-x64.
+Final Windows x64 build: succeeded, 0 warnings, 0 errors.
+
+Seven model regression checks passed using the actual Models.cs:
+- Appearance bounds (top gap, font scale, icon size)
+- Notes/tasks/shelf persistence
+- Seen Windows notification persistence
+- AI module added to module list
+- Day progress midpoint
+- Day progress bedtime clamp
+- Corrupt JSON backup recovery
+
+Not run: Windows GUI, screenshot comparison, actual audio hardware, Bluetooth,
+Wi-Fi, PowerShell WinRT broker, notification permission, installed-app COM picker,
+Ollama server or live weather request. Windows desktop verification is required.
