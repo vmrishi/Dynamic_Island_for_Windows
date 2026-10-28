@@ -7,7 +7,7 @@
   "targets": {
     ".NETCoreApp,Version=v10.0": {},
     ".NETCoreApp,Version=v10.0/win-x64": {
-      "OrbitIsland/0.2.0": {
+      "OrbitIsland/0.3.0": {
         "runtime": {
           "OrbitIsland.dll": {}
         }
@@ -15,7 +15,7 @@
     }
   },
   "libraries": {
-    "OrbitIsland/0.2.0": {
+    "OrbitIsland/0.3.0": {
       "type": "project",
       "serviceable": false,
       "sha512": ""

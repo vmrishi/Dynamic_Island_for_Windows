@@ -1,4 +1,5 @@
 namespace OrbitIsland;
+
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -12,30 +13,165 @@ using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Media;
 using System.Windows.Shapes;
-public partial class Island {
- static readonly HttpClient http=new(){Timeout=TimeSpan.FromSeconds(15)};
- async Task SetCity(string city){if(string.IsNullOrWhiteSpace(city)){weatherError="Enter a city name.";RenderTab();return;}try{status.Text="Finding your city…";using var doc=JsonDocument.Parse(await http.GetStringAsync("https://geocoding-api.open-meteo.com/v1/search?name="+Uri.EscapeDataString(city.Trim())+"&count=1&language=en&format=json"));if(!doc.RootElement.TryGetProperty("results",out var results)||results.GetArrayLength()==0)throw new Exception("No city found. Try a nearby city or include its full name.");var r=results[0];S.Latitude=r.GetProperty("latitude").GetDouble();S.Longitude=r.GetProperty("longitude").GetDouble();S.City=r.GetProperty("name").GetString()+", "+(r.TryGetProperty("admin1",out var a)?a.GetString()+", ":"")+r.GetProperty("country").GetString();Save();await RefreshWeather();}catch(Exception e){weatherError=e.Message;RenderTab();}}
- async Task RefreshWeather(){if(S.Latitude==null||S.Longitude==null)return;try{string lat=S.Latitude.Value.ToString(System.Globalization.CultureInfo.InvariantCulture),lon=S.Longitude.Value.ToString(System.Globalization.CultureInfo.InvariantCulture);var url=$"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m&hourly=temperature_2m,weather_code&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=auto&forecast_days=7";using var doc=JsonDocument.Parse(await http.GetStringAsync(url));weather=doc.RootElement.Clone();weatherError="";}catch(Exception e){weatherError="Forecast unavailable: "+e.Message;}if(expanded&&(tab=="Weather"||tab=="Dashboard"))RenderTab();}
- static string WeatherLabel(int code)=>code switch{0=>"Clear skies",1 or 2=>"Partly cloudy",3=>"Overcast",45 or 48=>"Foggy",>=51 and <=57=>"Drizzle",>=61 and <=67=>"Rain",>=71 and <=77=>"Snow",>=80 and <=82=>"Rain showers",85 or 86=>"Snow showers",>=95=>"Thunderstorms",_=>"Conditions unavailable"};
- static string WeatherIcon(int code)=>code switch{0=>"☀",1 or 2=>"⛅",>=51 and <=67=>"☂",>=71 and <=77=>"❄",>=95=>"ϟ",_=>"☁"};
- void Weather(){var p=new DockPanel();body.Children.Add(p);var search=Input("","Weather city");search.Width=230;var bar=Row(search,Primary("Set city",async()=>await SetCity(search.Text)),Btn("↻ Refresh",async()=>await RefreshWeather()),T("Forecast: Open-Meteo",11,Muted));bar.Margin=new Thickness(0,0,0,12);DockPanel.SetDock(bar,Dock.Top);p.Children.Add(bar);if(weatherError!=""){var err=T(weatherError,12,Brush("#FFAC88"));DockPanel.SetDock(err,Dock.Bottom);p.Children.Add(err);}if(weather==null){p.Children.Add(Card(Col(T("A little heads-up for your day.",27,Fg,true),T("Choose a city to see current conditions and the next seven days.\nOnly the city query and forecast coordinates are sent to Open-Meteo.",14,Muted))));return;}
-  var w=weather.Value;var cur=w.GetProperty("current");var content=Col();var top=Columns(1.7,1);var c=Col(T(S.City,13,Muted,true),Row(T(WeatherIcon(cur.GetProperty("weather_code").GetInt32()),48,Accent),T(" "+cur.GetProperty("temperature_2m").GetDouble().ToString("0")+"°",49,Fg,true),T("  "+WeatherLabel(cur.GetProperty("weather_code").GetInt32()),19,Fg,true)));Put(top,c,0);Put(top,Col(T("Feels like "+cur.GetProperty("apparent_temperature").GetDouble().ToString("0")+"°",14),T("Humidity "+cur.GetProperty("relative_humidity_2m").GetInt32()+"%",13,Muted),T("Wind "+cur.GetProperty("wind_speed_10m").GetDouble()+" km/h",13,Muted)),1);content.Children.Add(top);Gap(content,16);
-  var days=new UniformGrid{Columns=7};var daily=w.GetProperty("daily");for(int i=0;i<7;i++){var date=DateTime.Parse(daily.GetProperty("time")[i].GetString()!);var code=daily.GetProperty("weather_code")[i].GetInt32();var dp=Col(T(i==0?"Today":date.ToString("ddd"),12,Muted,true),T(WeatherIcon(code),26,Accent),T(daily.GetProperty("temperature_2m_max")[i].GetDouble().ToString("0")+"° / "+daily.GetProperty("temperature_2m_min")[i].GetDouble().ToString("0")+"°",13,Fg,true),T("Rain "+daily.GetProperty("precipitation_probability_max")[i].GetInt32()+"%",11,Muted));days.Children.Add(Card(dp,9));}content.Children.Add(days);Gap(content,12);var hourly=w.GetProperty("hourly");var hours=new UniformGrid{Columns=7};var localNow=DateTime.Parse(cur.GetProperty("time").GetString()!);int first=0;for(int j=0;j<hourly.GetProperty("time").GetArrayLength();j++){if(DateTime.Parse(hourly.GetProperty("time")[j].GetString()!)>=localNow){first=j;break;}}for(int j=first;j<Math.Min(first+7,hourly.GetProperty("time").GetArrayLength());j++){var hour=DateTime.Parse(hourly.GetProperty("time")[j].GetString()!);hours.Children.Add(Col(T(hour.ToString("HH:mm"),12,Muted),T(WeatherIcon(hourly.GetProperty("weather_code")[j].GetInt32()),24,Accent),T(hourly.GetProperty("temperature_2m")[j].GetDouble().ToString("0")+"°",16,Fg,true)));}content.Children.Add(Card(hours,12));Gap(content,12);content.Children.Add(T("Forecast time: "+cur.GetProperty("time").GetString()?.Replace('T',' ')+" · weather alerts are not included",10,Muted));p.Children.Add(Scroll(Card(content)));}
- async Task RefreshConnections(){connectionError="";status.Text="Reading Windows connections…";try{var r=await Native.Broker("radios");radios.Clear();foreach(var radio in Elements(r))radios[radio.GetProperty("kind").GetString()!]=radio.GetProperty("state").GetString()??"Unknown";}catch(Exception e){connectionError=e.Message;}
-  if(connectionTab=="Wi-Fi"){try{var r=await Native.Run("netsh.exe","wlan","show","networks","mode=bssid");var inf=await Native.Run("netsh.exe","wlan","show","interfaces");wifiDetails=inf.Output;networks.Clear();string? ssid=null;int signal=0;foreach(var line in r.Output.Split('\n')){var m=Regex.Match(line,@"^\s*SSID\s+\d+\s*:\s*(.*)");if(m.Success){if(!string.IsNullOrWhiteSpace(ssid))networks.Add((ssid,signal));ssid=m.Groups[1].Value.Trim();signal=0;}var s=Regex.Match(line,@"(?:Signal|信号)\s*:\s*(\d+)%");if(s.Success)signal=int.Parse(s.Groups[1].Value);}if(!string.IsNullOrWhiteSpace(ssid))networks.Add((ssid,signal));if(networks.Count==0)connectionError=r.Output.Trim();}catch(Exception e){connectionError=e.Message;}}
-  else{try{var r=await Native.Broker("bluetooth");devices=Elements(r).Select(x=>(x.GetProperty("FriendlyName").GetString()??"Bluetooth device",x.GetProperty("Status").GetString()??"Unknown")).ToList();}catch(Exception e){connectionError=e.Message;}}
-  if(expanded&&tab is "Connections" or "Control")RenderTab();
- }
- static IEnumerable<JsonElement> Elements(JsonElement e)=>e.ValueKind==JsonValueKind.Array?e.EnumerateArray().ToArray():e.ValueKind==JsonValueKind.Object?new[]{e}:Array.Empty<JsonElement>();
- async Task ToggleRadio(string kind){try{status.Text="Changing "+kind+" radio…";if(!radios.ContainsKey(kind)){var r=await Native.Broker("radios");foreach(var x in Elements(r))radios[x.GetProperty("kind").GetString()!]=x.GetProperty("state").GetString()??"Unknown";}if(!radios.ContainsKey(kind))throw new Exception("No "+kind+" radio detected. Check Windows settings.");await Native.Broker((kind=="WiFi"?"wifi":"bluetooth")+(radios[kind]=="On"?"-off":"-on"));await RefreshConnections();}catch(Exception e){Notify("Radio control unavailable",e.Message);}}
- async Task JoinNetwork(string ssid){try{var r=await Native.Run("netsh.exe","wlan","connect","name="+ssid);Notify(r.Code==0?"Connection requested":"Windows Wi-Fi setup needed",r.Output.Trim(),false);if(r.Code!=0)TryOpen("ms-settings:network-wifi");else await RefreshConnections();}catch(Exception e){Notify("Wi-Fi unavailable",e.Message);}}
- void Connections(){var p=new DockPanel();body.Children.Add(p);var bar=Row(Btn("Wi-Fi · "+radios.GetValueOrDefault("WiFi","unknown"),async()=>await ToggleRadio("WiFi")),Btn("Bluetooth · "+radios.GetValueOrDefault("Bluetooth","unknown"),async()=>await ToggleRadio("Bluetooth")),Btn("Networks",async()=>{connectionTab="Wi-Fi";RenderTab();await RefreshConnections();},connectionTab=="Wi-Fi"),Btn("Devices",async()=>{connectionTab="Bluetooth";RenderTab();await RefreshConnections();},connectionTab=="Bluetooth"),Primary("↻ Scan",async()=>await RefreshConnections()));DockPanel.SetDock(bar,Dock.Top);bar.Margin=new Thickness(0,0,0,14);p.Children.Add(bar);
-  var foot=Col(T(connectionTab=="Wi-Fi"?"Saved networks connect using their Windows profile. Set up new networks in Windows Settings.":"Paired Bluetooth devices · connection state comes from Windows Bluetooth. Pairing and switching use Windows Settings.",11,Muted),Row(Btn(connectionTab=="Wi-Fi"?"Wi-Fi settings":"Pair / connect a device",()=>TryOpen(connectionTab=="Wi-Fi"?"ms-settings:network-wifi":"ms-settings:bluetooth")),Btn("Sound output",()=>TryOpen("ms-settings:sound"))));if(connectionError!="")foot.Children.Insert(0,T(connectionError.Length>260?connectionError[..260]+"…":connectionError,11,Brush("#FFAE8E")));DockPanel.SetDock(foot,Dock.Bottom);p.Children.Add(foot);
-  var cards=new WrapPanel();if(connectionTab=="Wi-Fi"){foreach(var n in networks){var cp=Col(T("◉  "+n.Name+(n.Name==ConnectedWifi()?" · Connected":""),16,Fg,true),T(n.Signal>0?$"Signal {n.Signal}%":"Signal unavailable",12,Muted));Gap(cp,12);cp.Children.Add(Primary("Connect saved profile",async()=>await JoinNetwork(n.Name)));var c=Card(cp,14);c.Width=235;c.Margin=new Thickness(0,0,10,10);cards.Children.Add(c);}}else{foreach(var d in devices){var cp=Col(T("♬  "+d.Name,15,Fg,true),T(d.State,12,d.State=="Connected"?Accent:Muted));Gap(cp,12);cp.Children.Add(Btn(d.State=="Connected"?"Connected · manage":"Connect in Windows",()=>TryOpen("ms-settings:bluetooth")));var c=Card(cp,14);c.Width=235;c.Margin=new Thickness(0,0,10,10);cards.Children.Add(c);}}if(cards.Children.Count==0)cards.Children.Add(Col(T("Your connections, in one place",23,Fg,true),T("Select Scan to discover available hardware and networks.\nWindows 11 may require location access to list Wi-Fi networks.",13,Muted)));p.Children.Add(Scroll(cards));}
- void SystemPage(){var g=Columns(1,1,1,1,1);body.Children.Add(g);var cpu=Col(T("CPU",12,Muted,true),T(metrics.Cpu.ToString("0")+"%",35,Fg,true),T(Environment.ProcessorCount+" logical processors",11,Muted));Gap(cpu,35);cpu.Children.Add(Spark(cpuHistory,Accent));Put(g,Card(cpu,13),0);var mem=Col(T("MEMORY",12,Muted,true),T(metrics.Memory.ToString("0")+"%",35,Fg,true),T($"{metrics.UsedGb:0.0} / {metrics.TotalGb:0.0} GB",11,Muted));Gap(mem,35);mem.Children.Add(Spark(memHistory,Brush("#B985FA")));Put(g,Card(mem,13),1);
-  var net=Col(T("NETWORK",12,Muted,true),T(Bytes(metrics.Rx),27,Fg,true),T("↓ receive /s",11,Muted),T("↑ "+Bytes(metrics.Tx)+" /s",11,Muted));Gap(net,18);net.Children.Add(Spark(rxHistory,Brush("#2DCA84")));Put(g,Card(net,13),2);
-  var disk=Col(T("SYSTEM DISK",12,Muted,true));try{var drive=new DriveInfo(System.IO.Path.GetPathRoot(Environment.SystemDirectory)!);double used=1-drive.AvailableFreeSpace/(double)drive.TotalSize;disk.Children.Add(T(used.ToString("P0"),35,Fg,true));disk.Children.Add(T($"{drive.AvailableFreeSpace/1073741824d:0} GB free of {drive.TotalSize/1073741824d:0}",11,Muted));Gap(disk,60);disk.Children.Add(Progress(used,Accent));}catch{disk.Children.Add(T("Unavailable",16,Muted));}Put(g,Card(disk,13),3);
-  var temp=Col(T("TEMPERATURE",12,Muted,true),T("—",40,Fg,true),T("No compatible sensor provider",12,Muted));Gap(temp,24);temp.Children.Add(T("Windows does not expose a reliable CPU temperature on every PC.",11,Muted));Put(g,Card(temp,13),4);}
- FrameworkElement Spark(List<double> values,Brush color){var canvas=new Canvas{Height=72,ClipToBounds=true};void Draw(){canvas.Children.Clear();if(values.Count<2)return;double max=Math.Max(1,values.Max());var poly=new Polyline{Stroke=color,StrokeThickness=2};for(int i=0;i<values.Count;i++)poly.Points.Add(new Point(i*canvas.ActualWidth/(values.Count-1),68-values[i]/max*60));canvas.Children.Add(poly);}canvas.SizeChanged+=(_,_)=>Draw();return canvas;}
- static string Bytes(double value)=>value>=1048576?$"{value/1048576:0.0} MB":value>=1024?$"{value/1024:0.0} KB":$"{value:0} B";
+public partial class Island
+{
+    static readonly HttpClient http = new() { Timeout = TimeSpan.FromSeconds(15) };
+    async Task SetCity(string city)
+    {
+        if (string.IsNullOrWhiteSpace(city))
+        {
+            weatherError = "Enter a city name.";
+            RenderTab();
+            return;
+        }
+        try
+        {
+            status.Text = "Finding your city…";
+            using var doc = JsonDocument.Parse(await http.GetStringAsync("https://geocoding-api.open-meteo.com/v1/search?name=" + Uri.EscapeDataString(city.Trim()) + "&count=1&language=en&format=json"));
+            if (!doc.RootElement.TryGetProperty("results", out var results) || results.GetArrayLength() == 0)
+                throw new Exception("No city found. Try a nearby city or include its full name.");
+            var r = results[0];
+            S.Latitude = r.GetProperty("latitude").GetDouble();
+            S.Longitude = r.GetProperty("longitude").GetDouble();
+            S.City = r.GetProperty("name").GetString() + ", " + (r.TryGetProperty("admin1", out var a) ? a.GetString() + ", " : "") + r.GetProperty("country").GetString();
+            Save();
+            await RefreshWeather();
+        }
+        catch (Exception e) { weatherError = e.Message; RenderTab(); }
+    }
+    async Task RefreshWeather()
+    {
+        if (S.Latitude == null || S.Longitude == null)
+            return;
+        try
+        {
+            string lat = S.Latitude.Value.ToString(System.Globalization.CultureInfo.InvariantCulture), lon = S.Longitude.Value.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            var url = $"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m,surface_pressure&hourly=temperature_2m,weather_code&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,uv_index_max,sunrise,sunset&timezone=auto&forecast_days=7";
+            using var doc = JsonDocument.Parse(await http.GetStringAsync(url));
+            weather = doc.RootElement.Clone();
+            weatherError = "";
+        }
+        catch (Exception e) { weatherError = "Forecast unavailable: " + e.Message; }
+        if (expanded && (tab == "Weather" || tab == "Dashboard"))
+            RenderTab();
+    }
+    static string WeatherLabel(int code) => code switch { 0 => "Clear skies", 1 or 2 => "Partly cloudy", 3 => "Overcast", 45 or 48 => "Foggy", >= 51 and <= 57 => "Drizzle", >= 61 and <= 67 => "Rain", >= 71 and <= 77 => "Snow", >= 80 and <= 82 => "Rain showers", 85 or 86 => "Snow showers", >= 95 => "Thunderstorms", _ => "Conditions unavailable" };
+    static string WeatherIcon(int code) => code switch { 0 => "☀", 1 or 2 => "⛅", >= 51 and <= 67 => "☂", >= 71 and <= 77 => "❄", >= 95 => "ϟ", _ => "☁" };
+
+    bool connectionsBusy;
+    async Task RefreshConnections()
+    {
+        if (connectionsBusy)
+            return;
+        connectionsBusy = true;
+        connectionError = "";
+        try
+        {
+            status.Text = "Reading Windows connections…";
+            try
+            {
+                var r = await Native.Broker("radios");
+                radios.Clear();
+                foreach (var radio in Elements(r))
+                    radios[radio.GetProperty("kind").GetString()!] = radio.GetProperty("state").GetString() ?? "Unknown";
+            }
+            catch (Exception e) { connectionError = e.Message; }
+            try
+            {
+                var inf = await Native.Run("netsh.exe", "wlan", "show", "interfaces");
+                wifiDetails = inf.Code == 0 ? inf.Output : "";
+            }
+            catch { wifiDetails = ""; }
+            try
+            {
+                var r = await Native.Broker("bluetooth");
+                devices = Elements(r).Select(x => (x.GetProperty("FriendlyName").GetString() ?? "Bluetooth device", x.GetProperty("Status").GetString() ?? "Unknown")).ToList();
+            }
+            catch (Exception e) { devices.Clear(); if (connectionTab == "Bluetooth") connectionError = e.Message; }
+            if (connectionTab == "Wi-Fi")
+            {
+                try
+                {
+                    var r = await Native.Run("netsh.exe", "wlan", "show", "networks", "mode=bssid");
+                    networks.Clear();
+                    string? ssid = null;
+                    int signal = 0;
+                    foreach (var line in r.Output.Split('\n'))
+                    {
+                        var m = Regex.Match(line, @"^\s*SSID\s+\d+\s*:\s*(.*)");
+                        if (m.Success)
+                        {
+                            if (!string.IsNullOrWhiteSpace(ssid))
+                                networks.Add((ssid, signal));
+                            ssid = m.Groups[1].Value.Trim();
+                            signal = 0;
+                        }
+                        var value = Regex.Match(line, @"(?:Signal|信号)\s*:\s*(\d+)%");
+                        if (value.Success)
+                            signal = Math.Max(signal, int.Parse(value.Groups[1].Value));
+                    }
+                    if (!string.IsNullOrWhiteSpace(ssid))
+                        networks.Add((ssid, signal));
+                    if (r.Code != 0 || networks.Count == 0)
+                        connectionError = r.Output.Trim();
+                }
+                catch (Exception e) { connectionError = e.Message; }
+            }
+        }
+        finally { connectionsBusy = false; }
+        if (expanded && tab is "Connections" or "Control" or "Dashboard")
+            RenderTab();
+    }
+    static IEnumerable<JsonElement> Elements(JsonElement e) => e.ValueKind == JsonValueKind.Array ? e.EnumerateArray().ToArray() : e.ValueKind == JsonValueKind.Object ? new[] { e } : Array.Empty<JsonElement>();
+    async Task ToggleRadio(string kind)
+    {
+        try
+        {
+            status.Text = "Changing " + kind + " radio…";
+            if (!radios.ContainsKey(kind))
+            {
+                var r = await Native.Broker("radios");
+                foreach (var x in Elements(r))
+                    radios[x.GetProperty("kind").GetString()!] = x.GetProperty("state").GetString() ?? "Unknown";
+            }
+            if (!radios.ContainsKey(kind))
+                throw new Exception("No " + kind + " radio detected. Check Windows settings.");
+            await Native.Broker((kind == "WiFi" ? "wifi" : "bluetooth") + (radios[kind] == "On" ? "-off" : "-on"));
+            await RefreshConnections();
+        }
+        catch (Exception e) { Notify("Radio control unavailable", e.Message); }
+    }
+    async Task JoinNetwork(string ssid)
+    {
+        try
+        {
+            var r = await Native.Run("netsh.exe", "wlan", "connect", "name=" + ssid);
+            Notify(r.Code == 0 ? "Connection requested" : "Windows Wi-Fi setup needed", r.Output.Trim(), false);
+            if (r.Code != 0)
+                TryOpen("ms-settings:network-wifi");
+            else
+                await RefreshConnections();
+        }
+        catch (Exception e) { Notify("Wi-Fi unavailable", e.Message); }
+    }
+
+
+    FrameworkElement Spark(List<double> values, Brush color)
+    {
+        var canvas = new Canvas { Height = 72, ClipToBounds = true };
+        void Draw()
+        {
+            canvas.Children.Clear();
+            if (values.Count < 2)
+                return;
+            double max = Math.Max(1, values.Max());
+            var poly = new Polyline { Stroke = color, StrokeThickness = 2 };
+            for (int i = 0; i < values.Count; i++)
+                poly.Points.Add(new Point(i * canvas.ActualWidth / (values.Count - 1), 68 - values[i] / max * 60));
+            canvas.Children.Add(poly);
+        }
+        canvas.SizeChanged += (_, _) => Draw();
+        return canvas;
+    }
+    static string Bytes(double value) => value >= 1048576 ? $"{value / 1048576:0.0} MB" : value >= 1024 ? $"{value / 1024:0.0} KB" : $"{value:0} B";
 }

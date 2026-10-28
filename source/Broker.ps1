@@ -11,7 +11,9 @@ try {switch($Action) {
  $manager=Await ($type::RequestAsync()) $type; $session=$manager.GetCurrentSession()
  if($null -eq $session){'{"available":false}';break}
  $props=Await ($session.TryGetMediaPropertiesAsync()) ([Windows.Media.Control.GlobalSystemMediaTransportControlsSessionMediaProperties,Windows.Media.Control,ContentType=WindowsRuntime]);$timeline=$session.GetTimelineProperties()
- @{available=$true;title=$props.Title;artist=$props.Artist;source=$session.SourceAppUserModelId;status=$session.GetPlaybackInfo().PlaybackStatus.ToString();position=$timeline.Position.TotalSeconds;duration=$timeline.EndTime.TotalSeconds}|ConvertTo-Json -Compress
+ $art='';$reader=$null;$stream=$null
+ try{if($null -ne $props.Thumbnail){$stream=Await ($props.Thumbnail.OpenReadAsync()) ([Windows.Storage.Streams.IRandomAccessStreamWithContentType,Windows.Storage.Streams,ContentType=WindowsRuntime]);if($stream.Size -gt 0 -and $stream.Size -le 2097152){$readerType=[Windows.Storage.Streams.DataReader,Windows.Storage.Streams,ContentType=WindowsRuntime];$reader=$readerType::new($stream.GetInputStreamAt(0));$length=Await ($reader.LoadAsync([uint32]$stream.Size)) ([uint32]);$bytes=New-Object byte[] $length;$reader.ReadBytes($bytes);$art=[Convert]::ToBase64String($bytes)}}}catch{$art=''}finally{if($null -ne $reader){$reader.Dispose()};if($null -ne $stream){$stream.Dispose()}}
+ @{available=$true;art=$art;title=$props.Title;artist=$props.Artist;source=$session.SourceAppUserModelId;status=$session.GetPlaybackInfo().PlaybackStatus.ToString();position=$timeline.Position.TotalSeconds;duration=$timeline.EndTime.TotalSeconds}|ConvertTo-Json -Compress
  }
  'brightness' {$b=Get-CimInstance -Namespace root/WMI -ClassName WmiMonitorBrightness | Select-Object -First 1;if($null -eq $b){throw 'No supported built-in display.'};@{value=$b.CurrentBrightness}|ConvertTo-Json -Compress}
  'setbrightness' {Get-CimInstance -Namespace root/WMI -ClassName WmiMonitorBrightnessMethods | Invoke-CimMethod -MethodName WmiSetBrightness -Arguments @{Timeout=[uint32]1;Brightness=[byte]$Value}|Out-Null;'{"ok":true}'}

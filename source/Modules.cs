@@ -1,4 +1,5 @@
 namespace OrbitIsland;
+
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -13,46 +14,164 @@ using System.Windows.Controls.Primitives;
 using System.Windows.Media;
 using System.Windows.Input;
 using Microsoft.Win32;
-public partial class Island {
- void Shelf(){var p=new DockPanel();body.Children.Add(p);var tools=Row(Primary("+ Add apps or files",AddShelf),Btn("Windows apps",AddInstalledApp),Btn("Add folder",()=>{var dialog=new System.Windows.Forms.FolderBrowserDialog();if(dialog.ShowDialog()==System.Windows.Forms.DialogResult.OK){D.Shelf.Add(dialog.SelectedPath);Save();RenderTab();}}),T("Drop a shortcut, application, file, or folder below",12,Muted));DockPanel.SetDock(tools,Dock.Top);tools.Margin=new Thickness(0,0,0,16);p.Children.Add(tools);
-  var drop=new Border{BorderBrush=CardBorder,BorderThickness=new Thickness(2),CornerRadius=new CornerRadius(18),Background=Surface,Padding=new Thickness(18),AllowDrop=true};p.Children.Add(drop);drop.DragOver+=(_,e)=>{e.Effects=e.Data.GetDataPresent(DataFormats.FileDrop)?DragDropEffects.Link:DragDropEffects.None;e.Handled=true;};drop.Drop+=(_,e)=>{if(e.Data.GetData(DataFormats.FileDrop) is string[] files){foreach(var f in files)if(!D.Shelf.Contains(f))D.Shelf.Add(f);Save();RenderTab();}};
-  if(D.Shelf.Count==0){drop.Child=Col(T("↧",48,Accent),T("Your everyday things, one drop away",23,Fg,true),T("Pinned items are shortcuts. Your original files stay where they are.",13,Muted));return;}
-  var wrap=new WrapPanel();foreach(var path in D.Shelf){var name=System.IO.Path.GetFileName(path);if(string.IsNullOrEmpty(name))name=path;var item=Col(AppIcon(path),T(name,13,Fg,true));var b=Btn("",()=>TryOpen(path),false,path);b.Content=item;b.Width=154;b.Height=95;b.Margin=new Thickness(0,0,10,10);var menu=new ContextMenu();var remove=new MenuItem{Header="Unpin shortcut"};remove.Click+=(_,_)=>{D.Shelf.Remove(path);Save();RenderTab();};var copy=new MenuItem{Header="Copy path"};copy.Click+=(_,_)=>Clipboard.SetText(path);menu.Items.Add(copy);menu.Items.Add(remove);b.ContextMenu=menu;var origin=new Point();b.PreviewMouseLeftButtonDown+=(_,e)=>origin=e.GetPosition(b);b.PreviewMouseMove+=(_,e)=>{if(e.LeftButton==MouseButtonState.Pressed&&(e.GetPosition(b)-origin).Length>8)DragDrop.DoDragDrop(b,new DataObject(DataFormats.FileDrop,new[]{path}),DragDropEffects.Copy|DragDropEffects.Link);};var tile=new DockPanel();var removeButton=Btn("× Remove",()=>{D.Shelf.Remove(path);Save();RenderTab();});DockPanel.SetDock(removeButton,Dock.Bottom);tile.Children.Add(removeButton);tile.Children.Add(b);tile.Margin=new Thickness(0,0,10,10);wrap.Children.Add(tile);}drop.Child=Scroll(wrap);
- }
- void AddShelf(){var f=new OpenFileDialog{Multiselect=true,Title="Pin applications, shortcuts, or files",Filter="All files|*.*"};if(f.ShowDialog()==true){D.Shelf=D.Shelf.Concat(f.FileNames).Distinct(StringComparer.OrdinalIgnoreCase).ToList();Save();RenderTab();}}
- void Todos(){var p=new DockPanel();body.Children.Add(p);var input=Input("","New task");var due=new DatePicker{Width=145,VerticalAlignment=VerticalAlignment.Center,ToolTip="Optional due date",Margin=new Thickness(7,0,7,0)};var time=Input("09:00","Due time (24 hour)");time.Width=95;var bar=new Grid();bar.ColumnDefinitions.Add(new());bar.ColumnDefinitions.Add(new(){Width=GridLength.Auto});bar.ColumnDefinitions.Add(new(){Width=GridLength.Auto});bar.ColumnDefinitions.Add(new(){Width=GridLength.Auto});Put(bar,input,0);Put(bar,due,1);Put(bar,time,2);
-  void Add(){if(string.IsNullOrWhiteSpace(input.Text))return;DateTime? when=null;if(due.SelectedDate!=null){if(!TimeSpan.TryParse(time.Text,CultureInfo.CurrentCulture,out var ts)||ts.TotalHours<0||ts.TotalHours>=24){status.Text="Use a time such as 09:00.";return;}when=due.SelectedDate.Value.Date+ts;}D.Todos.Add(new(){Text=input.Text.Trim(),Due=when});Save();RenderTab();}
-  Put(bar,Primary("+ Add",Add),3);input.KeyDown+=(_,e)=>{if(e.Key==Key.Enter)Add();};DockPanel.SetDock(bar,Dock.Top);p.Children.Add(bar);
-  var filters=Row();foreach(var f in new[]{"Active","Done","Trash"})filters.Children.Add(Btn(f,()=>{todoFilter=f;RenderTab();},todoFilter==f));filters.Margin=new Thickness(0,12,0,12);DockPanel.SetDock(filters,Dock.Top);p.Children.Add(filters);
-  var list=Col();var todos=D.Todos.Where(t=>todoFilter=="Trash"?t.Trashed:!t.Trashed&&t.Done==(todoFilter=="Done")).OrderBy(t=>t.Due??DateTime.MaxValue).ToList();foreach(var t in todos){var row=new DockPanel();var actions=Row();if(todoFilter=="Trash"){actions.Children.Add(Btn("Restore",()=>{t.Trashed=false;Save();RenderTab();}));actions.Children.Add(Btn("Delete",()=>{D.Todos.Remove(t);Save();RenderTab();}));}else actions.Children.Add(Btn("Remove",()=>{t.Trashed=true;Save();RenderTab();}));DockPanel.SetDock(actions,Dock.Right);row.Children.Add(actions);var check=new CheckBox{Content=Col(T(t.Text,15,Fg,true),T(t.Due?.ToString("ddd, dd MMM · HH:mm")??"No due date",11,t.Due<DateTime.Now?Brush("#FF9E7D"):Muted)),IsChecked=t.Done,Foreground=Fg,VerticalContentAlignment=VerticalAlignment.Center};check.Click+=(_,_)=>{t.Done=check.IsChecked==true;Save();RenderTab();};row.Children.Add(check);var card=Card(row,12);card.Margin=new Thickness(0,0,0,8);list.Children.Add(card);}if(todos.Count==0){list.Children.Add(T(todoFilter=="Active"?"A clear mind starts here.":"Nothing here yet.",24,Fg,true));Gap(list);list.Children.Add(T("Add a task above, with an optional reminder.",13,Muted));}p.Children.Add(Scroll(list));
- }
- string noteDraft="";
- void Notes(){var g=Columns(1,2.7);body.Children.Add(g);var sidebar=new DockPanel{Margin=new Thickness(0,0,14,0)};var add=Btn("+ New note",()=>{notesId="";noteDraft="";RenderTab();});DockPanel.SetDock(add,Dock.Top);sidebar.Children.Add(add);var list=Col();foreach(var n in D.Notes.OrderByDescending(x=>x.Updated)){var row=new DockPanel{Margin=new Thickness(0,8,0,0)};var remove=Btn("×",()=>{D.Notes.Remove(n);if(notesId==n.Id){notesId="";noteDraft="";}Save();RenderTab();},false,"Delete note");DockPanel.SetDock(remove,Dock.Right);row.Children.Add(remove);row.Children.Add(Btn(n.Title,()=>{notesId=n.Id;noteDraft=n.Body;RenderTab();},n.Id==notesId));list.Children.Add(row);}if(D.Notes.Count==0){Gap(list,65);list.Children.Add(T("No notes yet",16,Muted));}sidebar.Children.Add(Scroll(list));Put(g,sidebar,0);var edit=new DockPanel();var editor=Input(noteDraft,"Start typing… The first line becomes the title.",true);editor.VerticalContentAlignment=VerticalAlignment.Top;editor.VerticalScrollBarVisibility=ScrollBarVisibility.Auto;editor.TextChanged+=(_,_)=>noteDraft=editor.Text;var save=Primary("OK · Save note",()=>{if(string.IsNullOrWhiteSpace(noteDraft))return;var note=D.Notes.FirstOrDefault(n=>n.Id==notesId);if(note==null){note=new Note();D.Notes.Add(note);}note.Body=noteDraft;note.Updated=DateTime.Now;notesId=note.Id;Save();RenderTab();});save.Margin=new Thickness(0,10,0,0);DockPanel.SetDock(save,Dock.Bottom);edit.Children.Add(save);edit.Children.Add(editor);Put(g,edit,1);}
- void SetTimerMode(string mode){D.Timer=new TimerRecord{Mode=mode,Remaining=Duration(mode),SessionDuration=Duration(mode)};Save();RenderTab();}
- double Duration(string mode)=>60*(mode=="Focus"?S.FocusMinutes:mode=="Short break"?S.ShortMinutes:S.LongMinutes);
- void ToggleTimer(){var t=D.Timer;if(t.Running){if(t.Mode=="Stopwatch")t.StopwatchSeconds=TimerSeconds();else t.Remaining=TimerSeconds();t.Running=false;}else{if(t.Mode=="Stopwatch")t.StopwatchStart=DateTimeOffset.Now;else{if(t.Remaining<=0){t.Remaining=Duration(t.Mode);t.SessionDuration=t.Remaining;}t.Deadline=DateTimeOffset.Now.AddSeconds(t.Remaining);}t.Running=true;}Save();RenderTab();}
- void Pomodoro(){var g=Columns(1.1,2,1);body.Children.Add(g);var dial=new Grid{Width=160,Height=160,HorizontalAlignment=HorizontalAlignment.Center,VerticalAlignment=VerticalAlignment.Center};dial.Children.Add(new System.Windows.Shapes.Ellipse{Stroke=CardBorder,StrokeThickness=9});var tp=Col();tp.VerticalAlignment=VerticalAlignment.Center;timerText=T(FormatTime(TimerSeconds()),34,Fg,true);timerText.HorizontalAlignment=HorizontalAlignment.Center;tp.Children.Add(timerText);var mode=T(D.Timer.Mode.ToUpperInvariant(),11,Accent,true);mode.HorizontalAlignment=HorizontalAlignment.Center;tp.Children.Add(mode);dial.Children.Add(tp);Put(g,dial,0);
-  var p=Col();p.VerticalAlignment=VerticalAlignment.Center;var modes=new WrapPanel();foreach(var m in new[]{"Focus","Short break","Long break","Stopwatch"})modes.Children.Add(Btn(m,()=>SetTimerMode(m),D.Timer.Mode==m));p.Children.Add(modes);Gap(p,25);p.Children.Add(Row(Btn("↺ Reset",()=>SetTimerMode(D.Timer.Mode)),Primary(D.Timer.Running?"Ⅱ Pause":"▶ Start",ToggleTimer),Btn("Next →",()=>SetTimerMode(D.Timer.Mode=="Focus"?(D.Today.FocusSessions%4==3?"Long break":"Short break"):"Focus"))));Gap(p,22);timerState=T(D.Timer.Running?"In progress · you have this":"Ready when you are",13,Muted);p.Children.Add(timerState);Put(g,p,1);
-  var stats=Col(T("TODAY",11,Muted,true),T(D.Today.FocusSessions.ToString(),43,Fg,true),T($"sessions · {D.Today.FocusSeconds/60:0}m focused",12,Muted));Gap(stats,25);stats.Children.Add(Btn("Timer settings",OpenSettings));Put(g,Card(stats),2);
- }
- void StartHealth(string mode,int duration){healthMode=mode;healthLength=duration;healthEnd=DateTimeOffset.Now.AddSeconds(duration);RenderTab();}
- void Health(){var g=Columns(.9,2.8);body.Children.Add(g);var day=D.Today;var rings=new Grid{Width=180,Height=180,VerticalAlignment=VerticalAlignment.Center,HorizontalAlignment=HorizontalAlignment.Center};for(int i=0;i<3;i++){rings.Children.Add(ActivityRing(180-38*i,new[]{day.Movement/6d,day.Water/(double)S.WaterGoal,day.Breathing/5d}[i],Brush(new[]{"#2DCA84","#58B9FF","#B985FA"}[i])));}var rp=Col(rings,T($"{day.Movement}/6 move   {day.Water}/{S.WaterGoal} water   {day.Breathing}/5 breathe",11,Muted));rp.VerticalAlignment=VerticalAlignment.Center;Put(g,rp,0);
-  var cards=new UniformGrid{Columns=2};var water=Col(T("◉  Water",18,Fg,true));Gap(water,14);water.Children.Add(Row(Btn("−",()=>{day.Water=Math.Max(0,day.Water-1);Save();RenderTab();}),T($"  {day.Water} / {S.WaterGoal} glasses  ",19,Fg,true),Btn("+",()=>{day.Water++;lastWater=DateTime.Now;Save();RenderTab();})));water.Children.Add(Progress(day.Water/(double)S.WaterGoal,Accent));cards.Children.Add(HealthCard(water));
-  foreach(var item in new[]{("Movement","Stand, stretch, and roll your shoulders.",120),("Breathing","A gentle 4–4–6 breathing rhythm.",60),("Eyes","Look 20 feet away for 20 seconds.",20)}){var p=Col(T(item.Item1+" break",18,Fg,true));Gap(p,10);p.Children.Add(T(item.Item2,12,Muted));Gap(p,12);p.Children.Add(Btn("▶ Start",()=>StartHealth(item.Item1,item.Item3)));cards.Children.Add(HealthCard(p));}
-  var panel=new DockPanel();if(healthEnd!=null){var active=Row();healthText=T(healthMode+" · starting…",17,Accent,true);active.Children.Add(healthText);active.Children.Add(Btn("Cancel",()=>{healthEnd=null;RenderTab();}));active.Margin=new Thickness(0,0,0,12);DockPanel.SetDock(active,Dock.Top);panel.Children.Add(active);}panel.Children.Add(cards);Put(g,panel,1);
- }
- Border HealthCard(UIElement content){var c=Card(content,14);c.Margin=new Thickness(0,0,10,10);return c;}
- bool usageWeek;
- void ScreenTime(){if(!S.TrackApps){Empty("Know where your time goes", "Track foreground app names and active time on this PC.\nTracking starts when you enable it and ignores idle time over five minutes.",Primary("Enable local tracking",()=>{S.TrackApps=true;Save();RenderTab();}));return;}var p=new DockPanel();body.Children.Add(p);var bar=Row(T("YOUR TIME, TODAY",11,Muted,true),Btn(usageWeek?"7 days":"Today",()=>{usageWeek=!usageWeek;RenderTab();}),Btn("Pause tracking",()=>{S.TrackApps=false;Save();RenderTab();}),Btn("Export CSV",ExportScreenTime));DockPanel.SetDock(bar,Dock.Top);bar.Margin=new Thickness(0,0,0,15);p.Children.Add(bar);var g=Columns(1,2.4);p.Children.Add(g);var usage=usageWeek?D.Days.Where(x=>DateTime.TryParse(x.Key,out var date)&&date>=DateTime.Today.AddDays(-6)).SelectMany(x=>x.Value.Apps).GroupBy(x=>x.Key).ToDictionary(x=>x.Key,x=>x.Sum(y=>y.Value)):D.Today.Apps;var total=usage.Values.Sum();var summary=Col(T(TimeSpan.FromSeconds(total).ToString(@"h\h\ m\m"),43,Fg,true),T(usageWeek?"active time · last 7 days":"active time today",13,Muted));Gap(summary,20);summary.Children.Insert(0,ActivityRing(120,total/(24*3600*(usageWeek?7:1)),Accent));summary.Children.Add(T("Only time recorded by Orbit appears here. App names and durations stay on this PC.",12,Muted));Put(g,Card(summary),0);var list=Col();foreach(var app in usage.OrderByDescending(x=>x.Value)){var row=Columns(1,1.8,.5);Put(row,T(app.Key,14,Fg,true),0);Put(row,Progress(app.Value/Math.Max(1,usage.Values.DefaultIfEmpty(1).Max()),Accent),1);Put(row,T($"{app.Value/60:0}m",12,Muted),2);list.Children.Add(row);Gap(list,13);}if(usage.Count==0)list.Children.Add(T("Open another app to begin recording time.",16,Muted));Put(g,Scroll(list),1);}
- void ExportScreenTime(){var f=new SaveFileDialog{Filter="CSV|*.csv",FileName="Orbit-screen-time.csv"};if(f.ShowDialog()!=true)return;var sb=new StringBuilder("Date,Application,Seconds\r\n");foreach(var d in D.Days)foreach(var a in d.Value.Apps)sb.AppendLine($"{d.Key},\"{a.Key.Replace("\"","\"\"")}\",{a.Value.ToString("0.0",CultureInfo.InvariantCulture)}");File.WriteAllText(f.FileName,sb.ToString());}
- void DayProgress(){var p=Col();body.Children.Add(p);double day=Store.DayProgress(DateTime.Now,S.WakeHour,S.BedHour);p.Children.Add(Row(T(day.ToString("P0"),45,Fg,true),T("  of your waking day"+(day>=1?" · time to rest 🌙":""),18,Muted)));Gap(p,12);p.Children.Add(Progress(day,Accent,40));var labels=Columns(1,1);Put(labels,T($"{S.WakeHour:00}:00",11,Muted),0);var bedtimeLabel=T($"{S.BedHour:00}:00",11,Muted);bedtimeLabel.HorizontalAlignment=HorizontalAlignment.Right;Put(labels,bedtimeLabel,1);p.Children.Add(labels);Gap(p,25);var g=Columns(1,1,1,2);var now=DateTime.Now;var weekStart=now.Date.AddDays(-((7+(int)now.DayOfWeek-1)%7));var month=new DateTime(now.Year,now.Month,1);var year=new DateTime(now.Year,1,1);var vals=new[]{("WEEK",(now-weekStart).TotalDays/7),("MONTH",(now-month).TotalDays/DateTime.DaysInMonth(now.Year,now.Month)),("YEAR",(now-year).TotalDays/(DateTime.IsLeapYear(now.Year)?366:365))};for(int i=0;i<3;i++){var v=vals[i];Put(g,Card(Col(T(v.Item1,11,Muted,true),T(v.Item2.ToString("P0"),28,Fg,true),Progress(v.Item2,Accent)),14),i);}var focused=D.Days.Count(x=>x.Value.FocusSessions>0);Put(g,Col(T("FOCUS DAYS",11,Muted,true),T(focused+" days with a completed session",16,Fg,true),T("Calendar progress is based on the current date.\nFocus days count your completed focus sessions.",12,Muted)),3);p.Children.Add(g);}
- void CalendarPage(){var g=Columns(1,1.7);body.Children.Add(g);var month=selectedDate.Date.AddDays(1-selectedDate.Day);var left=Col();var heading=Row(T(month.ToString("MMMM yyyy"),20,Fg,true),Btn("‹",()=>{selectedDate=selectedDate.AddMonths(-1);RenderTab();}),Btn("Today",()=>{selectedDate=DateTime.Today;RenderTab();}),Btn("›",()=>{selectedDate=selectedDate.AddMonths(1);RenderTab();}));left.Children.Add(heading);Gap(left);var calendar=new UniformGrid{Columns=7};foreach(var label in new[]{"M","T","W","T","F","S","S"}){var dayLabel=T(label,12,Muted,true);dayLabel.HorizontalAlignment=HorizontalAlignment.Center;calendar.Children.Add(dayLabel);}var start=month.AddDays(-((int)month.DayOfWeek+6)%7);for(int i=0;i<42;i++){var date=start.AddDays(i);var button=Btn(date.Day.ToString(),()=>{selectedDate=date;RenderTab();},date==selectedDate.Date,date.ToLongDateString());button.Padding=new Thickness(4,7,4,7);button.Margin=new Thickness(2);button.Foreground=date.Month==month.Month?Fg:Muted;if(date==DateTime.Today){button.Background=Brush("#FF4945");button.Foreground=System.Windows.Media.Brushes.White;}calendar.Children.Add(button);}left.Children.Add(calendar);Gap(left);left.Children.Add(Btn("Import .ics",ImportIcs));Put(g,left,0);
-  var p=new DockPanel();var head=T(selectedDate.ToString("dddd, dd MMMM yyyy"),21,Fg,true);head.Margin=new Thickness(0,0,0,15);DockPanel.SetDock(head,Dock.Top);p.Children.Add(head);var add=Row(Primary("+ Event",AddEvent),Btn("Export .ics",ExportIcs));DockPanel.SetDock(add,Dock.Bottom);p.Children.Add(add);var list=Col();foreach(var ev in D.Events.Where(x=>x.Start.Date==selectedDate).OrderBy(x=>x.Start)){var row=new DockPanel();var remove=Btn("Remove",()=>{D.Events.Remove(ev);Save();RenderTab();});DockPanel.SetDock(remove,Dock.Right);row.Children.Add(remove);row.Children.Add(Col(T(ev.Title,16,Fg,true),T(ev.Start.ToString("HH:mm"),12,Accent)));var c=Card(row,12);c.Margin=new Thickness(0,0,0,9);list.Children.Add(c);}if(list.Children.Count==0)list.Children.Add(T("No events. Make a little space for what matters.",14,Muted));p.Children.Add(Scroll(list));Put(g,p,1);}
- void AddEvent(){var title=Input("","Event title");var time=Input("09:00","Start time (HH:mm)");var content=Col(T(selectedDate.ToString("dddd, dd MMMM"),18,Fg,true),T("Event title",12,Muted),title,T("Start time · 24 hour",12,Muted),time);ShowDialog("New event",content,()=>{if(string.IsNullOrWhiteSpace(title.Text))throw new Exception("Enter an event title.");if(!TimeSpan.TryParse(time.Text,out var ts)||ts.TotalHours<0||ts.TotalHours>=24)throw new Exception("Use a time such as 09:00.");D.Events.Add(new(){Title=title.Text.Trim(),Start=selectedDate.Date+ts});Save();RenderTab();});}
- void ImportIcs(){var f=new OpenFileDialog{Filter="iCalendar|*.ics"};if(f.ShowDialog()!=true)return;int count=0,skipped=0;var text=Regex.Replace(File.ReadAllText(f.FileName),"\\r?\\n[ \\t]","");foreach(Match m in Regex.Matches(text,"BEGIN:VEVENT(.*?)END:VEVENT",RegexOptions.Singleline)){var block=m.Groups[1].Value;if(Regex.IsMatch(block,@"(?m)^RRULE:")){skipped++;continue;}var title=Regex.Match(block,@"(?m)^SUMMARY:(.*)").Groups[1].Value.Trim().Replace(@"\n"," ").Replace(@"\,",",");var dt=Regex.Match(block,@"(?m)^DTSTART([^:]*):([^\r\n]+)");string raw=dt.Groups[2].Value.Trim();if(dt.Groups[1].Value.Contains("TZID=")){skipped++;continue;}if(!DateTime.TryParseExact(raw,new[]{"yyyyMMdd'T'HHmmss'Z'","yyyyMMdd'T'HHmmss","yyyyMMdd"},CultureInfo.InvariantCulture,raw.EndsWith('Z')?DateTimeStyles.AssumeUniversal|DateTimeStyles.AdjustToUniversal:DateTimeStyles.None,out var start)){skipped++;continue;}if(raw.EndsWith('Z'))start=start.ToLocalTime();if(title!=""&&!D.Events.Any(x=>x.Title==title&&x.Start==start)){D.Events.Add(new(){Title=title,Start=start});count++;}}Save();RenderTab();Notify("Calendar imported",$"{count} events added. {skipped} recurring, timezone-tagged, or unsupported events skipped.",false);}
- void ExportIcs(){var f=new SaveFileDialog{Filter="iCalendar|*.ics",FileName="Orbit-calendar.ics"};if(f.ShowDialog()!=true)return;var sb=new StringBuilder("BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//Orbit Island//Local Calendar//EN\r\n");foreach(var ev in D.Events){string summary=ev.Title.Replace("\\","\\\\").Replace("\n",@"\n").Replace(",",@"\,").Replace(";",@"\;");sb.Append($"BEGIN:VEVENT\r\nUID:{ev.Id}@orbit.local\r\nDTSTAMP:{DateTime.UtcNow:yyyyMMdd'T'HHmmss'Z'}\r\nDTSTART:{ev.Start.ToUniversalTime():yyyyMMdd'T'HHmmss'Z'}\r\nSUMMARY:{summary}\r\nEND:VEVENT\r\n");}sb.Append("END:VCALENDAR\r\n");File.WriteAllText(f.FileName,sb.ToString());}
- void Notifications(){var p=new DockPanel();body.Children.Add(p);var bar=Row(T("NOTIFICATION CENTER",13,Fg,true),Btn("Mark all read",()=>{D.Notices.ForEach(n=>n.Read=true);Save();RenderTab();}),Btn(S.Reminders?"Pause reminders":"Resume reminders",()=>{S.Reminders=!S.Reminders;Save();RenderTab();}),Btn("Clear all",()=>{D.Notices.Clear();Save();RenderTab();}),Btn("Windows notifications",()=>TryOpen("ms-settings:notifications")));DockPanel.SetDock(bar,Dock.Top);bar.Margin=new Thickness(0,0,0,12);p.Children.Add(bar);var info=T("Orbit reminders and activity · Windows notification history is available in Windows Notification Center.",11,Muted);DockPanel.SetDock(info,Dock.Bottom);p.Children.Add(info);var list=Col();foreach(var n in D.Notices){var row=new DockPanel();var time=T(n.Time.ToString("dd MMM · HH:mm"),11,Muted);DockPanel.SetDock(time,Dock.Right);row.Children.Add(time);row.Children.Add(Col(T((n.Read?"":"● ")+n.Title,15,n.Read?Fg:Accent,true),T(n.Detail,12,Muted)));var card=Card(row,12);card.Margin=new Thickness(0,0,0,8);card.MouseLeftButtonUp+=(_,_)=>{n.Read=true;Save();RenderTab();};list.Children.Add(card);}if(D.Notices.Count==0)list.Children.Add(T("All quiet. Your reminders will appear here.",20,Muted));p.Children.Add(Scroll(list));}
- void ShowDialog(string title,StackPanel content,Action save){var w=new Window{Title=title,Owner=this,Width=420,SizeToContent=SizeToContent.Height,WindowStartupLocation=WindowStartupLocation.CenterOwner,Background=shell.Background,Foreground=Fg,FontFamily=FontFamily,ResizeMode=ResizeMode.NoResize,Topmost=Topmost,Resources=Resources};var p=Col(content);p.Margin=new Thickness(22);Gap(p,20);p.Children.Add(Row(Primary("Save",()=>{try{save();w.Close();}catch(Exception e){MessageBox.Show(w,e.Message,title);}}),Btn("Cancel",w.Close)));w.Content=p;w.ShowDialog();}
+public partial class Island
+{
+
+    void AddShelf()
+    {
+        var f = new OpenFileDialog { Multiselect = true, Title = "Pin applications, shortcuts, or files", Filter = "All files|*.*" };
+        if (f.ShowDialog() == true)
+        {
+            D.Shelf = D.Shelf.Concat(f.FileNames).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+            Save();
+            RenderTab();
+        }
+    }
+
+    string noteDraft = "";
+
+    void SetTimerMode(string mode)
+    {
+        D.Timer = new TimerRecord { Mode = mode, Remaining = Duration(mode), SessionDuration = Duration(mode) };
+        Save();
+        RenderTab();
+    }
+    double Duration(string mode) => 60 * (mode == "Focus" ? S.FocusMinutes : mode == "Short break" ? S.ShortMinutes : S.LongMinutes);
+    void ToggleTimer()
+    {
+        var t = D.Timer;
+        if (t.Running)
+        {
+            if (t.Mode == "Stopwatch")
+                t.StopwatchSeconds = TimerSeconds();
+            else
+                t.Remaining = TimerSeconds();
+            t.Running = false;
+        }
+        else
+        {
+            if (t.Mode == "Stopwatch")
+                t.StopwatchStart = DateTimeOffset.Now;
+            else
+            {
+                if (t.Remaining <= 0)
+                {
+                    t.Remaining = Duration(t.Mode);
+                    t.SessionDuration = t.Remaining;
+                }
+                t.Deadline = DateTimeOffset.Now.AddSeconds(t.Remaining);
+            }
+            t.Running = true;
+        }
+        Save();
+        RenderTab();
+    }
+
+    void StartHealth(string mode, int duration)
+    {
+        healthMode = mode;
+        healthLength = duration;
+        healthEnd = DateTimeOffset.Now.AddSeconds(duration);
+        RenderTab();
+    }
+
+    Border HealthCard(UIElement content)
+    {
+        var c = Card(content, 14);
+        c.Margin = new Thickness(0, 0, 10, 10);
+        return c;
+    }
+    bool usageWeek;
+
+    void ExportScreenTime()
+    {
+        var f = new SaveFileDialog { Filter = "CSV|*.csv", FileName = "Orbit-screen-time.csv" };
+        if (f.ShowDialog() != true)
+            return;
+        var sb = new StringBuilder("Date,Application,Seconds\r\n");
+        foreach (var d in D.Days)
+        foreach (var a in d.Value.Apps)
+            sb.AppendLine($"{d.Key},\"{a.Key.Replace("\"", "\"\"")}\",{a.Value.ToString("0.0", CultureInfo.InvariantCulture)}");
+        File.WriteAllText(f.FileName, sb.ToString());
+    }
+
+
+    void AddEvent()
+    {
+        var title = Input("", "Event title");
+        var time = Input("09:00", "Start time (HH:mm)");
+        var content = Col(T(selectedDate.ToString("dddd, dd MMMM"), 18, Fg, true), T("Event title", 12, Muted), title, T("Start time · 24 hour", 12, Muted), time);
+        ShowDialog("New event", content, () => { if (string.IsNullOrWhiteSpace(title.Text)) throw new Exception("Enter an event title."); if (!TimeSpan.TryParse(time.Text, out var ts) || ts.TotalHours < 0 || ts.TotalHours >= 24) throw new Exception("Use a time such as 09:00."); D.Events.Add(new() { Title = title.Text.Trim(), Start = selectedDate.Date + ts }); Save(); RenderTab(); });
+    }
+    void ImportIcs()
+    {
+        var f = new OpenFileDialog { Filter = "iCalendar|*.ics" };
+        if (f.ShowDialog() != true)
+            return;
+        int count = 0, skipped = 0;
+        var text = Regex.Replace(File.ReadAllText(f.FileName), "\\r?\\n[ \\t]", "");
+        foreach (Match m in Regex.Matches(text, "BEGIN:VEVENT(.*?)END:VEVENT", RegexOptions.Singleline))
+        {
+            var block = m.Groups[1].Value;
+            if (Regex.IsMatch(block, @"(?m)^RRULE:"))
+            {
+                skipped++;
+                continue;
+            }
+            var title = Regex.Match(block, @"(?m)^SUMMARY:(.*)").Groups[1].Value.Trim().Replace(@"\n", " ").Replace(@"\,", ",");
+            var dt = Regex.Match(block, @"(?m)^DTSTART([^:]*):([^\r\n]+)");
+            string raw = dt.Groups[2].Value.Trim();
+            if (dt.Groups[1].Value.Contains("TZID="))
+            {
+                skipped++;
+                continue;
+            }
+            if (!DateTime.TryParseExact(raw, new[] { "yyyyMMdd'T'HHmmss'Z'", "yyyyMMdd'T'HHmmss", "yyyyMMdd" }, CultureInfo.InvariantCulture, raw.EndsWith('Z') ? DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal : DateTimeStyles.None, out var start))
+            {
+                skipped++;
+                continue;
+            }
+            if (raw.EndsWith('Z'))
+                start = start.ToLocalTime();
+            if (title != "" && !D.Events.Any(x => x.Title == title && x.Start == start))
+            {
+                D.Events.Add(new()
+                {
+                    Title = title,
+                    Start = start
+                });
+                count++;
+            }
+        }
+        Save();
+        RenderTab();
+        Notify("Calendar imported", $"{count} events added. {skipped} recurring, timezone-tagged, or unsupported events skipped.", false);
+    }
+    void ExportIcs()
+    {
+        var f = new SaveFileDialog { Filter = "iCalendar|*.ics", FileName = "Orbit-calendar.ics" };
+        if (f.ShowDialog() != true)
+            return;
+        var sb = new StringBuilder("BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//Orbit Island//Local Calendar//EN\r\n");
+        foreach (var ev in D.Events)
+        {
+            string summary = ev.Title.Replace("\\", "\\\\").Replace("\n", @"\n").Replace(",", @"\,").Replace(";", @"\;");
+            sb.Append($"BEGIN:VEVENT\r\nUID:{ev.Id}@orbit.local\r\nDTSTAMP:{DateTime.UtcNow:yyyyMMdd'T'HHmmss'Z'}\r\nDTSTART:{ev.Start.ToUniversalTime():yyyyMMdd'T'HHmmss'Z'}\r\nSUMMARY:{summary}\r\nEND:VEVENT\r\n");
+        }
+        sb.Append("END:VCALENDAR\r\n");
+        File.WriteAllText(f.FileName, sb.ToString());
+    }
+
+    void ShowDialog(string title, StackPanel content, Action save)
+    {
+        var w = new Window { Title = title, Owner = this, Width = 420, SizeToContent = SizeToContent.Height, WindowStartupLocation = WindowStartupLocation.CenterOwner, Background = Brush(S.Light ? "#FBFCFE" : "#111113"), Foreground = Fg, FontFamily = FontFamily, ResizeMode = ResizeMode.NoResize, Topmost = Topmost, Resources = Resources };
+        var p = Col(content);
+        p.Margin = new Thickness(22);
+        Gap(p, 20);
+        p.Children.Add(Row(Primary("Save", () => { try { save(); w.Close(); } catch (Exception e) { MessageBox.Show(w, e.Message, title); } }), Btn("Cancel", w.Close)));
+        w.Content = p;
+        w.ShowDialog();
+    }
 }
 
 

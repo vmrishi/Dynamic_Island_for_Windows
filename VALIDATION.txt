@@ -1,17 +1,18 @@
-Version 0.2 validation
+Orbit Island 0.3 validation
 
-Cross-compiled on Linux with .NET SDK 10.0.403 targeting net10.0-windows/win-x64.
-Final Windows x64 build: succeeded, 0 warnings, 0 errors.
+Completed:
+- Cross-compiled Windows x64 WPF app with .NET 10 SDK.
+- Theme.xaml compiled by WPF markup compiler.
+- Ten model/geometry regression checks passed: top attachment default;
+  appearance bounds; content persistence; notch/usage timeline persistence;
+  seen-notification persistence; AI module migration; day midpoint/bedtime
+  clamps; backup recovery; locale-safe notch coordinates.
+- Portable ZIP runtime manifest and integrity verified during packaging.
 
-Seven model regression checks passed using the actual Models.cs:
-- Appearance bounds (top gap, font scale, icon size)
-- Notes/tasks/shelf persistence
-- Seen Windows notification persistence
-- AI module added to module list
-- Day progress midpoint
-- Day progress bedtime clamp
-- Corrupt JSON backup recovery
+Not executed in this Linux environment:
+- Windows GUI/screenshot comparison, animation/hover/DPI interaction.
+- Audio, Wi-Fi, Bluetooth, media thumbnail broker, actual Windows notifications.
+- Live weather requests, Ollama requests, installed-app COM picker.
 
-Not run: Windows GUI, screenshot comparison, actual audio hardware, Bluetooth,
-Wi-Fi, PowerShell WinRT broker, notification permission, installed-app COM picker,
-Ollama server or live weather request. Windows desktop verification is required.
+Capture-UI.ps1 provides an isolated Windows render/screenshot check for all views.
+It is included for Windows verification, not reported as already run.

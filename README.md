@@ -1,45 +1,49 @@
-# Orbit Dynamic Island 0.2
+# Orbit Island 0.3 — top-attached notch
 
-Native Windows WPF app updated from the supplied 0.1 archive using the attached screenshots as visual references.
+A native C#/.NET Windows app. The visual layer has been rebuilt using the supplied Poni screenshots as references. Poni's reference website is https://poni.web.id/en/; Orbit is an independent app, not a copy of Poni's source code or a verified reproduction of its implementation.
 
-## Portable application (Windows x64)
+## Download the portable app
 
-Download [Orbit Island Portable](https://github.com/vmrishi/Dynamic_Island_for_Windows/raw/refs/heads/work/downloads/Orbit-Island-Portable-win-x64.zip), extract the entire ZIP to a writable folder, then run `OrbitIsland.exe`. No installer or separate .NET installation is needed. Keep all extracted files together. Settings and notes are saved in the `Data` folder beside the executable, so they travel with the app. This portable package uses a separate data folder from earlier versions; import a JSON backup through Settings to transfer existing data. Delete the extracted folder to remove the portable app. Windows hardware/GUI behavior still requires Windows testing.
+[Download Orbit Island v0.3 Portable — Windows x64](https://github.com/vmrishi/Dynamic_Island_for_Windows/raw/refs/heads/work/downloads/Orbit-Island-Portable-v0.3-win-x64.zip)
 
-`portable.mode` selects this local data behavior. Removing it restores the default LocalAppData storage. `--data-dir` overrides either default. To rebuild the portable ZIP on Windows, run `Build-Portable.ps1` with the .NET 10 SDK installed.
+Extract **all** files to a writable folder, then run **OrbitIsland.exe**. No installer or separate .NET installation is required. Keep the extracted files together. Data is stored in the adjacent `Data` folder; export/import a JSON backup in Settings to transfer content from an older installation. Quit the old version from the tray before opening the new one.
 
-## Run (original runtime-dependent package)
+## New interface
 
-Requires Windows 10/11 x64 and the .NET 10 Desktop Runtime. Extract the entire folder, then double-click `Start Orbit.cmd`. Keep Broker.ps1 beside OrbitIsland.exe.
+- A drawn notch attaches to the top edge with **outward-curving top shoulders**. The closed state is a 300-DIP-wide, 48-DIP-high clock notch, not a floating pill. Opening/collapse uses a short size transition.
+- The expanded notch keeps its outward top shoulders and rounded bottom corners, as in the reference. Per-module heights match the compact and tall reference layouts.
+- Consistent vector icons replace the mixed font/Unicode icons. A compact scrollable navigation strip, selected tab label, keep-awake shortcut, notification badge and settings button run along the top.
+- Home has album art when the Windows media session provides it, track metadata, a thin progress bar, transport controls and a seven-day calendar strip.
+- Dashboard has four cards for toggles, weather, apps and day progress. Control uses split Wi-Fi/Bluetooth tiles, clear connection captions and custom volume/brightness sliders.
+- Shelf has a large dashed drop area, automatic shortcut arrangement, installed-app picker and visible removal controls. Copy paths copies paths rather than pretending to share files through an unimplemented service.
+- Todo has a single task input, reminder button and Active/Done/Trash filters. Notes has its list on the left and a large editor with OK on the right. Drafts save when switching notes, leaving the tab, collapsing or quitting.
+- Pomodoro has a timer ring, segmented modes, circular playback controls, session dots and daily statistics. Health has three activity rings and a 2×2 water/movement/breathing/eye-break layout.
+- Weather uses a blue forecast panel with current conditions, humidity, wind, daily maximum UV, pressure, sunrise/sunset and side-by-side hourly/daily forecasts. Location is configured in Settings.
+- Screen Time has a category ring, usage legend, app ranking, recorded hourly timeline and today/7-day views. Categories are inferred from process names; durations and app switches come from real local tracking. The hourly chart shows today's recorded hours.
+- Day Progress has a large day bar, time labels, week/month/year cards and upcoming local events. System has five live metric cards, with unavailable temperature explicitly indicated.
+- Bluetooth/Wi-Fi, calendar, AI Chat and notifications have also been redesigned. Notification filters, mark-all-read and clear-all work on Orbit's local list.
+- Settings has a searchable left sidebar, Welcome feature cards and pages for every module. General controls attachment, light/dark theme, colors, font size, icon size, width, monitor, opacity and hover behavior.
 
-The island starts as a clock pill above the desktop with a top gap. Hover to expand; move away to collapse. Esc collapses, Alt+Shift+O toggles, Ctrl+, opens settings. The tray icon also opens settings or quits.
+## Controls
 
-## Changes
+Hover to open. Move away to collapse (configurable). Esc collapses; Alt+Shift+O toggles; Ctrl+, opens settings. Use the tray icon to open, customize or quit. To detach the notch, turn off **General → Attach to top edge** and set an offset.
 
-- Dark rounded island, compact icon navigation, light appearance, sidebar settings, custom island/accent colors, font scale, icon size, width, monitor and top offset.
-- Home media controls, compact dashboard and control cards, calendar month grid, health progress rings, timer view, day progress and live CPU/memory/network/disk views.
-- Weather location in settings, current conditions, seven-day forecast and hourly forecast using Open-Meteo.
-- Shelf supports file/shortcut drops, installed-app picker, automatic wrapping, native file icons and visible remove buttons. Original files are never deleted by removing a pin.
-- Tasks stack under the entry field and support completion, removal, restore and permanent deletion from Trash.
-- Notes have New note/list on the left and a large editor on the right. OK saves the draft; each saved note has a delete button. Save before switching away from a draft.
-- Speaker volume unmutes when raised. COM endpoint enumeration preserves HRESULTs. Default microphone/speaker mute controls remain available.
-- Bluetooth uses paired-device ConnectionStatus rather than PnP driver Status. Wi-Fi marks the connected SSID and control tiles show connection names. Opening Control or Connections refreshes state; it refreshes every 30 seconds while visible.
-- Screen time uses real foreground-process tracking, with today/7-day views and CSV export. Tracking is opt-in and ignores idle periods longer than five minutes.
-- AI Chat supports a configurable Ollama chat endpoint and model, in-memory conversation, new chat and send/error states. Install/run Ollama and download your chosen model separately. Default endpoint is http://localhost:11434/api/chat. Messages go to your configured server.
-- Notification center supports mark all read and clear all. Optional Windows notification capture is in Settings → Notifications. Seen Windows IDs persist so clearing the local list does not immediately re-add the same notifications.
+`portable.mode` selects storage beside the app. Removing it restores `%LOCALAPPDATA%\OrbitDynamicIsland`. `--data-dir <path>` overrides either default.
 
-## Windows integration limits
+## Integration limits
 
-- New Wi-Fi profiles/password entry and Bluetooth pairing/audio connection switching use Windows Settings. Saved Wi-Fi profiles can connect from the island; their profile names must match the SSID. netsh parsing assumes English field labels; location permission may be needed for scanning.
-- Windows notification capture uses UserNotificationListener. Windows may deny access to an unpackaged application; a signed MSIX/package identity is not included. The app reports access failure and disables capture. Orbit reminders work independently. Clear/read controls affect Orbit's copy, not Windows Notification Center.
-- Bluetooth state applies to classic paired Bluetooth devices; BLE-only devices and battery levels are not implemented. No battery values are invented.
-- Temperature remains unavailable without a supported sensor provider. Brightness requires a supported built-in display. External DDC/CI is not included.
-- Screen time starts with Orbit tracking; Windows does not supply prior historical per-app usage here. Live system metrics are sampled every two seconds.
-- Calendar remains local with basic ICS import/export; Google/Outlook synchronization is not included.
-- This is screenshot-inspired styling, not a pixel-verified reproduction. Windows GUI, hardware behavior, PowerShell WinRT calls and multi-monitor/DPI behavior require testing on Windows; this delivery was built on Linux.
+- Saved Wi-Fi profiles can connect from Orbit if the profile name matches the SSID. New network credentials, Bluetooth pairing and audio device switching open Windows Settings. Wi-Fi parsing expects English netsh labels; Windows may require location access.
+- Bluetooth reports paired classic-device ConnectionStatus, not PnP driver health. BLE-only devices and battery levels are not implemented; no battery values are fabricated.
+- Brightness needs a supported built-in display. External DDC/CI and compatible CPU temperature sensor providers are not included.
+- Screen Time begins when enabled; prior Windows app usage history cannot be imported by this implementation. Idle periods longer than five minutes are ignored.
+- Calendar is local with basic ICS import/export. Recurrence and TZID-tagged imports are skipped; Google/Outlook synchronization is not implemented.
+- AI Chat uses a separately installed/running Ollama server and configurable model/endpoint, not Gemini. Messages go to that endpoint.
+- Optional Windows notification capture requires permission and may require packaged app identity. A signed MSIX is not included. Clear/read actions affect Orbit's local copy, not Windows Notification Center. Orbit reminders work independently.
 
-## Build
+## Build and verification
 
-Install .NET 10 SDK on Windows and run `powershell -ExecutionPolicy Bypass -File .\Build.ps1` (add `-Run` to launch expanded). `Test.ps1` runs the Windows self-test/diagnostics. Source is included.
+Build on Windows with the .NET 10 SDK: run `Build.ps1`, or `Build-Portable.ps1` for a self-contained Windows x64 ZIP. Source includes a compiled WPF resource dictionary (`Theme.xaml`), so templates are checked by the build.
 
-Data is stored under `%LOCALAPPDATA%\OrbitDynamicIsland`. Existing settings are preserved; old installations can enable auto-collapse in Appearance. Backups can be exported in Settings → Data & startup.
+Portable v0.3 was cross-compiled on Linux. Ten model/geometry regression checks passed, the Windows build passed, and the ZIP's runtime contents/integrity were checked. **Windows GUI rendering, screenshot matching, hardware behavior, media artwork and WinRT broker calls have not been executed in this environment.** This is a screenshot-guided rebuild; it is not claimed to be pixel-verified.
+
+Run `dotnet run --project tests/ModelTests.csproj` for portable model checks. On Windows, run `Capture-UI.ps1` beside the EXE (or in the repository after building) to render every module, validate usable layouts/icon geometry and open the screenshots folder. It uses an isolated temporary data directory. The command reports rendering failures; screenshots still need visual review. `Test.ps1` runs the existing Windows self-tests.
