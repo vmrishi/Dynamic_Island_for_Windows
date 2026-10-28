@@ -23,7 +23,7 @@ using Forms=System.Windows.Forms;
 namespace OrbitIsland;
 public class Program {
  [STAThread] public static void Main(string[] args){
-  string dir=System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"OrbitDynamicIsland");var di=Array.IndexOf(args,"--data-dir");if(di>=0&&args.Length>di+1)dir=System.IO.Path.GetFullPath(args[di+1]);
+  bool portable=File.Exists(System.IO.Path.Combine(AppContext.BaseDirectory,"portable.mode"));string dir=portable?System.IO.Path.Combine(AppContext.BaseDirectory,"Data"):System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"OrbitDynamicIsland");var di=Array.IndexOf(args,"--data-dir");if(di>=0&&args.Length>di+1)dir=System.IO.Path.GetFullPath(args[di+1]);
   if(args.Contains("--self-test")){SelfTest.Run(dir);return;} if(args.Contains("--diagnostics")){SelfTest.Diagnostics(dir);return;}
   using var mutex=new Mutex(true,"Local\\OrbitIsland-v01-"+Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(dir)))[..16],out bool first);if(!first)return;
   var app=new Application{ShutdownMode=ShutdownMode.OnMainWindowClose};

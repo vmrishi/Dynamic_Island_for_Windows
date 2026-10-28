@@ -2,7 +2,13 @@
 
 Native Windows WPF app updated from the supplied 0.1 archive using the attached screenshots as visual references.
 
-## Run
+## Portable application (Windows x64)
+
+Download [Orbit Island Portable](https://github.com/vmrishi/Dynamic_Island_for_Windows/raw/refs/heads/work/downloads/Orbit-Island-Portable-win-x64.zip), extract the entire ZIP to a writable folder, then run `OrbitIsland.exe`. No installer or separate .NET installation is needed. Keep all extracted files together. Settings and notes are saved in the `Data` folder beside the executable, so they travel with the app. This portable package uses a separate data folder from earlier versions; import a JSON backup through Settings to transfer existing data. Delete the extracted folder to remove the portable app. Windows hardware/GUI behavior still requires Windows testing.
+
+`portable.mode` selects this local data behavior. Removing it restores the default LocalAppData storage. `--data-dir` overrides either default. To rebuild the portable ZIP on Windows, run `Build-Portable.ps1` with the .NET 10 SDK installed.
+
+## Run (original runtime-dependent package)
 
 Requires Windows 10/11 x64 and the .NET 10 Desktop Runtime. Extract the entire folder, then double-click `Start Orbit.cmd`. Keep Broker.ps1 beside OrbitIsland.exe.
 
