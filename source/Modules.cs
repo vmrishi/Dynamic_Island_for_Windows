@@ -90,18 +90,22 @@ public partial class Island
             return;
         var sb = new StringBuilder("Date,Application,Seconds\r\n");
         foreach (var d in D.Days)
-        foreach (var a in d.Value.Apps)
-            sb.AppendLine($"{d.Key},\"{a.Key.Replace("\"", "\"\"")}\",{a.Value.ToString("0.0", CultureInfo.InvariantCulture)}");
+            foreach (var a in d.Value.Apps)
+                sb.AppendLine($"{d.Key},\"{a.Key.Replace("\"", "\"\"")}\",{a.Value.ToString("0.0", CultureInfo.InvariantCulture)}");
         File.WriteAllText(f.FileName, sb.ToString());
     }
 
 
-    void AddEvent()
+    void AddEvent() => EditEvent();
+    void EditEvent(CalendarItem? existing = null)
     {
-        var title = Input("", "Event title");
-        var time = Input("09:00", "Start time (HH:mm)");
-        var content = Col(T(selectedDate.ToString("dddd, dd MMMM"), 18, Fg, true), T("Event title", 12, Muted), title, T("Start time · 24 hour", 12, Muted), time);
-        ShowDialog("New event", content, () => { if (string.IsNullOrWhiteSpace(title.Text)) throw new Exception("Enter an event title."); if (!TimeSpan.TryParse(time.Text, out var ts) || ts.TotalHours < 0 || ts.TotalHours >= 24) throw new Exception("Use a time such as 09:00."); D.Events.Add(new() { Title = title.Text.Trim(), Start = selectedDate.Date + ts }); Save(); RenderTab(); });
+        var title = Input(existing?.Title ?? "", "Event title");
+        var start = existing?.Start ?? selectedDate.Date.AddHours(9);
+        var date = Input(start.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture), "YYYY-MM-DD");
+        var time = Input(start.ToString("HH:mm", CultureInfo.InvariantCulture), "HH:mm");
+        var minutes = Input(existing?.End is { } end ? Math.Max(1, (int)(end - start).TotalMinutes).ToString() : "60", "Duration in minutes");
+        var form = Col(T("Title", 12, Muted), title, T("Date · YYYY-MM-DD", 12, Muted), date, T("Time · 24 hour", 12, Muted), time, T("Duration · minutes", 12, Muted), minutes);
+        ShowOverlay(existing == null ? "New event" : "Edit event", form, () => { if (string.IsNullOrWhiteSpace(title.Text)) throw new Exception("Enter an event title."); if (!int.TryParse(minutes.Text, out var duration)) throw new Exception("Enter a whole-number duration."); var times = CalendarRules.EventTime(date.Text, time.Text, duration); var item = existing ?? new CalendarItem(); item.Title = title.Text.Trim(); item.Start = times.Start; item.End = times.End; item.Alerted = false; if (existing == null) D.Events.Add(item); selectedDate = item.Start.Date; displayedMonth = CalendarRules.Month(selectedDate); Save(); }, "Save event");
     }
     void ImportIcs()
     {
@@ -156,24 +160,14 @@ public partial class Island
         foreach (var ev in D.Events)
         {
             string summary = ev.Title.Replace("\\", "\\\\").Replace("\n", @"\n").Replace(",", @"\,").Replace(";", @"\;");
-            sb.Append($"BEGIN:VEVENT\r\nUID:{ev.Id}@orbit.local\r\nDTSTAMP:{DateTime.UtcNow:yyyyMMdd'T'HHmmss'Z'}\r\nDTSTART:{ev.Start.ToUniversalTime():yyyyMMdd'T'HHmmss'Z'}\r\nSUMMARY:{summary}\r\nEND:VEVENT\r\n");
+            sb.Append($"BEGIN:VEVENT\r\nUID:{ev.Id}@orbit.local\r\nDTSTAMP:{DateTime.UtcNow:yyyyMMdd'T'HHmmss'Z'}\r\nDTSTART:{ev.Start.ToUniversalTime():yyyyMMdd'T'HHmmss'Z'}\r\nSUMMARY:{summary}\r\n");
+            if (ev.End is { } finish)
+                sb.Append($"DTEND:{finish.ToUniversalTime():yyyyMMdd'T'HHmmss'Z'}\r\n");
+            sb.Append("END:VEVENT\r\n");
         }
         sb.Append("END:VCALENDAR\r\n");
         File.WriteAllText(f.FileName, sb.ToString());
     }
 
-    void ShowDialog(string title, StackPanel content, Action save)
-    {
-        var w = new Window { Title = title, Owner = this, Width = 420, SizeToContent = SizeToContent.Height, WindowStartupLocation = WindowStartupLocation.CenterOwner, Background = Brush(S.Light ? "#FBFCFE" : "#111113"), Foreground = Fg, FontFamily = FontFamily, ResizeMode = ResizeMode.NoResize, Topmost = Topmost, Resources = Resources };
-        var p = Col(content);
-        p.Margin = new Thickness(22);
-        Gap(p, 20);
-        p.Children.Add(Row(Primary("Save", () => { try { save(); w.Close(); } catch (Exception e) { MessageBox.Show(w, e.Message, title); } }), Btn("Cancel", w.Close)));
-        w.Content = p;
-        w.ShowDialog();
-    }
+    void ShowDialog(string title, StackPanel content, Action save) => ShowOverlay(title, content, save);
 }
-
-
-
-

@@ -1,53 +1,54 @@
-# Orbit Island 0.3.1 — top-attached notch
+# Orbit Island 0.4
 
-A native C#/.NET Windows app. The visual layer has been rebuilt using the supplied Poni screenshots as references. Poni's reference website is https://poni.web.id/en/; Orbit is an independent app, not a copy of Poni's source code or a verified reproduction of its implementation.
+Portable C#/.NET Dynamic Island for **Windows 11 or Windows 10 version 2004+**, x64. Screenshot reference: https://poni.web.id/en/. Orbit is independent of Poni.
 
-## Download the portable app
+[Download Orbit Island 0.4 Portable](https://github.com/vmrishi/Dynamic_Island_for_Windows/raw/refs/heads/work/downloads/Orbit-Island-Portable-v0.4-win-x64.zip)
 
-[Download Orbit Island v0.3.1 Portable — Windows x64](https://github.com/vmrishi/Dynamic_Island_for_Windows/raw/refs/heads/work/downloads/Orbit-Island-Portable-v0.3.1-win-x64.zip)
+## Update / run
 
-Extract **all** files to a writable folder, then run **OrbitIsland.exe**. No installer or separate .NET installation is required. Keep the extracted files together. Data is stored in the adjacent `Data` folder; export/import a JSON backup in Settings to transfer content from an older installation. Quit the old version from the tray before opening the new one.
+Quit the old Orbit process from the tray. Extract the entire new ZIP into a **new writable folder** and run `OrbitIsland.exe`. No installer or separate .NET runtime is needed. Copy your old **Data** folder beside the new EXE before launching to retain settings, tasks, notes, calendar and usage history. Keep all new runtime DLLs together; do not mix the old 0.3 runtime files with 0.4. This release adds Windows Runtime projection assemblies for direct media/radio control, so there is no small DLL-only patch.
 
-## Startup fix in 0.3.1
+Hover opens the clock notch; leaving collapses it. Esc closes an island overlay or collapses the notch; Alt+Shift+O toggles; Ctrl+, opens Orbit Settings. `portable.mode` keeps data beside the EXE. `--data-dir <path>` overrides storage.
 
-Fixed the read-only geometry exception during startup and resize. The notch clip now clones the parsed geometry before applying its translation, then freezes the completed clip. Existing Data folders remain compatible.
+## Changes in 0.4
 
-## New interface
+- Dashboard quick toggles are rounded rectangles with **white ON backgrounds and dark icons**, rather than stretched circles. Control connectivity tiles retain the reference's blue highlight and have properly joined split-button corners.
+- Progress tracks use a clipped rounded renderer. The day bar has a restrained gradient, rounded ends and subtle timeline divisions. Sliders have rounded tracks and inset thumbs.
+- The island uses one fixed design surface inside a Viewbox. Overall width/display scaling resizes icons, text and sections together. Font and icon overrides are supported without independently stretching each widget. Compact/expanded, module and overlay transitions use eased bounds changes; routine media updates no longer rebuild the player every two seconds.
+- A slim 7-DIP scrollbar replaces the default menu/content scrollbar. Empty/hover tooltips and mouse-click focus rectangles are removed. Keyboard-only focus outlines remain. Text fields have explicit inset padding so the caret stays away from the edge.
+- All 73 interface symbols come from the standard **Lucide** set with consistent stroke weights. These are redistributable cross-platform icons, not Apple's restricted SF Symbols. Attribution is included in `Licenses`.
+- Weather opens its full forecast view and refreshes on entry. It shows current conditions, humidity, wind, current-hour UV, pressure, sunrise/sunset and seven hourly/two-hourly and daily forecast columns, with distinct day/night/rain/snow/storm symbols. Location changes, refresh and error status are available inside the island. A new location is saved only after its forecast loads successfully.
+- Screen Time attributes the preceding interval to the previous foreground app, splits at hour/midnight boundaries, ignores suspend/long polling gaps and uses the same date range for seven-day charts and totals. Friendly process names/icons are saved when available; short durations show seconds. Turning tracking off also stops collecting process metadata. Existing historical records are preserved rather than fabricated or rewritten.
+- Tracking is opt-in. Idle periods over 60 seconds, secure/locked desktops and Orbit itself are excluded. An actively playing media session whose source matches the foreground process is kept active while watching/listening. Windows 10 ApplicationFrameHost child processes are resolved where available. The records are estimates from one-second foreground samples, not imported Windows history.
+- Calendar month navigation no longer changes the selected event date. It has a Monday-first six-week grid, distinct selection/today states, in-island event creation/editing with date, time and duration, and duration-aware ICS export. Basic ICS import/export remains local; recurrence and TZID imports are not supported.
+- Device, password, media-source, sound, event and screenshot dialogs are displayed as **island overlays**. The Settings app shortcut opens Orbit's settings rather than Windows Settings. The screenshot action captures the chosen monitor, saves under `Data/Screenshots` and offers an in-island preview/copy action.
 
-- A drawn notch attaches to the top edge with **outward-curving top shoulders**. The closed state is a 300-DIP-wide, 48-DIP-high clock notch, not a floating pill. Opening/collapse uses a short size transition.
-- The expanded notch keeps its outward top shoulders and rounded bottom corners, as in the reference. Per-module heights match the compact and tall reference layouts.
-- Consistent vector icons replace the mixed font/Unicode icons. A compact scrollable navigation strip, selected tab label, keep-awake shortcut, notification badge and settings button run along the top.
-- Home has album art when the Windows media session provides it, track metadata, a thin progress bar, transport controls and a seven-day calendar strip.
-- Dashboard has four cards for toggles, weather, apps and day progress. Control uses split Wi-Fi/Bluetooth tiles, clear connection captions and custom volume/brightness sliders.
-- Shelf has a large dashed drop area, automatic shortcut arrangement, installed-app picker and visible removal controls. Copy paths copies paths rather than pretending to share files through an unimplemented service.
-- Todo has a single task input, reminder button and Active/Done/Trash filters. Notes has its list on the left and a large editor with OK on the right. Drafts save when switching notes, leaving the tab, collapsing or quitting.
-- Pomodoro has a timer ring, segmented modes, circular playback controls, session dots and daily statistics. Health has three activity rings and a 2×2 water/movement/breathing/eye-break layout.
-- Weather uses a blue forecast panel with current conditions, humidity, wind, daily maximum UV, pressure, sunrise/sunset and side-by-side hourly/daily forecasts. Location is configured in Settings.
-- Screen Time has a category ring, usage legend, app ranking, recorded hourly timeline and today/7-day views. Categories are inferred from process names; durations and app switches come from real local tracking. The hourly chart shows today's recorded hours.
-- Day Progress has a large day bar, time labels, week/month/year cards and upcoming local events. System has five live metric cards, with unavailable temperature explicitly indicated.
-- Bluetooth/Wi-Fi, calendar, AI Chat and notifications have also been redesigned. Notification filters, mark-all-read and clear-all work on Orbit's local list.
-- Settings has a searchable left sidebar, Welcome feature cards and pages for every module. General controls attachment, light/dark theme, colors, font size, icon size, width, monitor, opacity and hover behavior.
+## Music / browser media
 
-## Controls
+Music metadata and transport now use **Windows Global System Media Transport Controls directly in-process**. The old global media-key control and PowerShell metadata polling are no longer used.
 
-Hover to open. Move away to collapse (configurable). Esc collapses; Alt+Shift+O toggles; Ctrl+, opens settings. Use the tray icon to open, customize or quit. To detach the notch, turn off **General → Attach to top edge** and set an offset.
+Start playback in a compatible browser or Windows app, open Home, then use **Choose source / the displayed source name** if needed. Play/pause, next, previous and seeking target the native session represented by the displayed track. Controls are enabled according to the player's advertised capabilities. Timeline position is refreshed/estimated from Windows timestamps, and artwork is cached/decoded at thumbnail size.
 
-`portable.mode` selects storage beside the app. Removing it restores `%LOCALAPPDATA%\OrbitDynamicIsland`. `--data-dir <path>` overrides either default.
+Chrome, Edge, Firefox, Spotify and Windows players work **when they expose a Windows media session**. Browser settings, DRM/private content and individual players can restrict metadata or actions. Orbit cannot control a player that supplies no media session. The source picker explains missing sessions or rejected commands instead of pretending to control an app or sending keys to a different player. These integrations still need live Windows/browser verification.
 
-## Integration limits
+## Device controls inside the island
 
-- Saved Wi-Fi profiles can connect from Orbit if the profile name matches the SSID. New network credentials, Bluetooth pairing and audio device switching open Windows Settings. Wi-Fi parsing expects English netsh labels; Windows may require location access.
-- Bluetooth reports paired classic-device ConnectionStatus, not PnP driver health. BLE-only devices and battery levels are not implemented; no battery values are fabricated.
-- Brightness needs a supported built-in display. External DDC/CI and compatible CPU temperature sensor providers are not included.
-- Screen Time begins when enabled; prior Windows app usage history cannot be imported by this implementation. Idle periods longer than five minutes are ignored.
-- Calendar is local with basic ICS import/export. Recurrence and TZID-tagged imports are skipped; Google/Outlook synchronization is not implemented.
-- AI Chat uses a separately installed/running Ollama server and configurable model/endpoint, not Gemini. Messages go to that endpoint.
-- Optional Windows notification capture requires permission and may require packaged app identity. A signed MSIX is not included. Clear/read actions affect Orbit's local copy, not Windows Notification Center. Orbit reminders work independently.
+- **Wi-Fi:** native WLAN scans/status, saved-profile connection, personal WPA/WPA2/WPA3-SAE password entry, password changes and disconnect. Credentials are passed to Windows WLAN profiles and are not stored in Orbit's JSON. Enterprise/legacy authentication requires an already provisioned Windows profile. Windows location/privacy permissions can deny scanning; the error is displayed in the island. No automatic Windows Settings redirect is used.
+- **Bluetooth:** native classic-device discovery and pairing/connection status. Connect/disconnect requests enable/disable supported audio/headset/HID profile services and wait for the reported state. BLE-only devices, unsupported profiles, driver restrictions and inaccessible radios are reported as unsupported/errors. Windows has no universal classic-device connect API. Secure pairing may require a native operating-system confirmation prompt; this is not a Settings redirect. Battery readings are not invented.
+- **Sound:** active output/input device lists, default-device selection and mute controls are available in the island. Default selection uses Windows audio-policy COM and is subject to OS compatibility. Apps pinned to their own output can ignore system-default changes.
+- **Brightness:** selected-monitor DDC/CI first, then matching WMI support where available. No unrelated monitor is selected as a fallback. Hardware without an exposed brightness API displays an explanation/retry action rather than opening Windows Settings.
+- **Media/radio:** direct Windows Runtime APIs. The small PowerShell broker remains only for WMI brightness and optional system notification capture.
 
-## Build and verification
+## Other limits
 
-Build on Windows with the .NET 10 SDK: run `Build.ps1`, or `Build-Portable.ps1` for a self-contained Windows x64 ZIP. Source includes a compiled WPF resource dictionary (`Theme.xaml`), so templates are checked by the build.
+System CPU/RAM/network/disk readings are live. CPU temperature requires a compatible sensor provider and is shown as unavailable. AI Chat uses a separately running Ollama server. Calendar does not synchronize Google/Outlook accounts. Windows notification capture may need packaged app identity and OS permission; Orbit reminders work independently. Read/clear actions apply to Orbit's copy. A signed MSIX is not included.
 
-Portable v0.3.1 was cross-compiled on Linux. Ten model/geometry regression checks passed, the Windows build passed, and the ZIP's runtime contents/integrity were checked. **Windows GUI rendering, screenshot matching, hardware behavior, media artwork and WinRT broker calls have not been executed in this environment.** This is a screenshot-guided rebuild; it is not claimed to be pixel-verified.
+## Build / validation
 
-Run `dotnet run --project tests/ModelTests.csproj` for portable model checks. On Windows, run `Capture-UI.ps1` beside the EXE (or in the repository after building) to render every module, validate usable layouts/icon geometry and open the screenshots folder. It uses an isolated temporary data directory. The command reports rendering failures; screenshots still need visual review. `Test.ps1` runs the existing Windows self-tests.
+With the .NET 10 SDK on Windows, run `Build.ps1` for the runtime-dependent app or `Build-Portable.ps1` for the complete self-contained ZIP. `Theme.xaml` is compiled, and icon data is embedded in the assembly.
+
+The release is cross-built on Linux. **Windows GUI, browser playback, Bluetooth pairing/connection, WLAN operations, audio switching and monitor hardware have not been executed here.** Build success and regression checks do not establish hardware compatibility.
+
+`dotnet run --project tests/ModelTests.csproj` runs portable logic/native-layout checks. With `-- --assembly <OrbitIsland.dll>`, it also inspects the built PE's embedded icons/theme. There are 34 checks with the assembly inspection enabled.
+
+`Capture-UI.ps1` beside the portable EXE (or in the repository after building) runs isolated Windows render checks, including the earlier frozen-geometry fix, white rectangular toggles, rounded progress clipping and compact/wide layout. It captures every module under `%TEMP%/OrbitVisualTest-*` for visual review. Those Windows-only checks are included but have not been run in this environment. `Test.ps1` retains the original Windows persistence/diagnostic entry points.

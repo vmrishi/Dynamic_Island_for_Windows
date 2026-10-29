@@ -23,7 +23,7 @@ public partial class Island
             Gap(empty, 8);
             empty.Children.Add(T(weatherError.Length > 0 ? weatherError : "Choose your location to see the weather here.", 14, Muted));
             Gap(empty, 16);
-            empty.Children.Add(Pill("Choose location", "pin", () => OpenSettingsPage("Weather"), true));
+            empty.Children.Add(Pill("Choose location", "pin", () => ShowWeatherLocation(), true));
             body.Children.Add(Center(empty));
             return;
         }
@@ -31,6 +31,18 @@ public partial class Island
         var cur = w.GetProperty("current");
         var daily = w.GetProperty("daily");
         var main = new DockPanel();
+        var forecastStatus = new DockPanel { Margin = new Thickness(0, 8, 0, 0) };
+        var refresh = IconButton("refresh", async () => await RefreshWeather(), "Refresh forecast", Brush("#CCD3E8"), 14);
+        refresh.Padding = new Thickness(5, 0, 5, 0);
+        DockPanel.SetDock(refresh, Dock.Right);
+        forecastStatus.Children.Add(refresh);
+        var location = IconButton("pin", ShowWeatherLocation, "Change location", Brush("#CCD3E8"), 14);
+        location.Padding = new Thickness(5, 0, 5, 0);
+        DockPanel.SetDock(location, Dock.Right);
+        forecastStatus.Children.Add(location);
+        forecastStatus.Children.Add(Line(weatherError.Length > 0 ? "Saved forecast · " + weatherError : "Open-Meteo · " + cur.GetProperty("time").GetString()?.Replace('T', ' '), 10, Brush("#B6BFDB")));
+        DockPanel.SetDock(forecastStatus, Dock.Bottom);
+        main.Children.Add(forecastStatus);
         var top = new Grid { Margin = new Thickness(0, 0, 0, 16) };
         top.ColumnDefinitions.Add(new()
         {
@@ -47,14 +59,14 @@ public partial class Island
             Width = GridLength.Auto
         });
         overview.ColumnDefinitions.Add(new());
-        Put(overview, Icon(WeatherVector(cur.GetProperty("weather_code").GetInt32()), 64, Brushes.White), 0);
+        Put(overview, Icon(WeatherVector(cur.GetProperty("weather_code").GetInt32(), !cur.TryGetProperty("is_day", out var daylight) || daylight.GetInt32() != 0), 64, Brushes.White), 0);
         Put(overview, T(cur.GetProperty("temperature_2m").GetDouble().ToString("0") + "°", 52, Brushes.White, true), 1);
         var place = Col(T(WeatherLabel(cur.GetProperty("weather_code").GetInt32()), 17, Brushes.White, true), Line(S.City, 13, Brush("#C5C8DC")), T($"H {daily.GetProperty("temperature_2m_max")[0].GetDouble():0}° · L {daily.GetProperty("temperature_2m_min")[0].GetDouble():0}° · Feels {cur.GetProperty("apparent_temperature").GetDouble():0}°", 12, Brush("#C5C8DC")));
         place.Margin = new Thickness(12, 0, 12, 0);
         Put(overview, place, 2);
         Put(top, overview, 0);
         var chips = new UniformGrid { Columns = 3 };
-        foreach (var metric in new[] { ("water", cur.GetProperty("relative_humidity_2m").GetDouble().ToString("0") + "%"), ("wifi", cur.GetProperty("wind_speed_10m").GetDouble().ToString("0") + " km/h"), ("sun", "UV max " + OptionalNumber(daily, "uv_index_max", 0)), ("System", OptionalNumber(cur, "surface_pressure") + " hPa"), ("sun", OptionalTime(daily, "sunrise")), ("moon", OptionalTime(daily, "sunset")) })
+        foreach (var metric in new[] { ("water", cur.GetProperty("relative_humidity_2m").GetDouble().ToString("0") + "%"), ("wind", cur.GetProperty("wind_speed_10m").GetDouble().ToString("0") + " km/h"), ("sun", "UV " + CurrentUv(w)), ("System", OptionalNumber(cur, "surface_pressure") + " hPa"), ("sunrise", OptionalTime(daily, "sunrise")), ("sunset", OptionalTime(daily, "sunset")) })
         {
             var chip = new Border { Background = Brush("#121835"), CornerRadius = new CornerRadius(15), Padding = new Thickness(10, 6, 10, 6), Margin = new Thickness(3), Child = Row(Icon(metric.Item1, 14, Brush("#C5C8DC")), Space(6), T(metric.Item2, 11, Brushes.White, true)) };
             chips.Children.Add(chip);
@@ -68,16 +80,20 @@ public partial class Island
         var localNow = DateTime.Parse(cur.GetProperty("time").GetString()!);
         int first = 0;
         for (int i = 0; i < hourly.GetProperty("time").GetArrayLength(); i++)
-        if (DateTime.Parse(hourly.GetProperty("time")[i].GetString()!) >= localNow)
         {
-            first = i;
-            break;
+            if (DateTime.Parse(hourly.GetProperty("time")[i].GetString()!) <= localNow)
+                first = i;
+            else
+                break;
         }
         for (int i = 0; i < 7; i++)
         {
             int index = Math.Min(first + i * 2, hourly.GetProperty("time").GetArrayLength() - 1);
             var date = DateTime.Parse(hourly.GetProperty("time")[index].GetString()!);
-            hours.Children.Add(ForecastColumn(i == 0 ? "Now" : date.ToString("H:mm"), WeatherVector(hourly.GetProperty("weather_code")[index].GetInt32()), hourly.GetProperty("temperature_2m")[index].GetDouble().ToString("0") + "°", null));
+            int code = i == 0 ? cur.GetProperty("weather_code").GetInt32() : hourly.GetProperty("weather_code")[index].GetInt32();
+            bool day = i == 0 ? (!cur.TryGetProperty("is_day", out var dayValue) || dayValue.GetInt32() != 0) : (!hourly.TryGetProperty("is_day", out var values) || values[index].GetInt32() != 0);
+            double temperature = i == 0 ? cur.GetProperty("temperature_2m").GetDouble() : hourly.GetProperty("temperature_2m")[index].GetDouble();
+            hours.Children.Add(ForecastColumn(i == 0 ? "Now" : date.ToString("H:mm"), WeatherVector(code, day), temperature.ToString("0") + "°", null));
         }
         var days = new UniformGrid { Columns = 7 };
         for (int i = 0; i < 7; i++)
@@ -94,7 +110,30 @@ public partial class Island
         background.Background = new LinearGradientBrush(Color.FromRgb(13, 18, 44), Color.FromRgb(43, 47, 87), 35);
         body.Children.Add(background);
     }
-    static string WeatherVector(int code) => code == 0 ? "sun" : code is 1 or 2 ? "Weather" : "Weather";
+    static string WeatherVector(int code, bool day = true) => code switch { 0 => day ? "sun" : "moon", 1 or 2 => day ? "Weather" : "cloud-moon", 3 => "cloud", 45 or 48 => "fog", >= 51 and <= 67 => "rain", >= 71 and <= 77 => "snow", >= 80 and <= 82 => "rain", 85 or 86 => "snow", >= 95 => "storm", _ => "cloud" };
+    string CurrentUv(JsonElement w)
+    {
+        try
+        {
+            var hours = w.GetProperty("hourly");
+            var now = DateTime.Parse(w.GetProperty("current").GetProperty("time").GetString()!);
+            int index = 0;
+            for (int i = 0; i < hours.GetProperty("time").GetArrayLength(); i++)
+            {
+                if (DateTime.Parse(hours.GetProperty("time")[i].GetString()!) <= now)
+                    index = i;
+                else
+                    break;
+            }
+            return hours.GetProperty("uv_index")[index].GetDouble().ToString("0.0");
+        }
+        catch { return "—"; }
+    }
+    void ShowWeatherLocation()
+    {
+        var city = Input(S.City, "City or town");
+        ShowOverlay("Weather location", Col(T("Choose a city for the full current forecast.", 14, Muted), city), () => { if (string.IsNullOrWhiteSpace(city.Text)) throw new Exception("Enter a city."); _ = SetCity(city.Text); }, "Find location");
+    }
     string OptionalNumber(JsonElement obj, string name, int? index = null)
     {
         try
@@ -154,13 +193,15 @@ public partial class Island
             Empty("Know where your time goes", "Record foreground app usage locally on this PC. Tracking starts when enabled.", Pill("Enable tracking", "Screen Time", () => { S.TrackApps = true; Save(); RenderTab(); }, true));
             return;
         }
-        var usage = usageWeek ? D.Days.Where(x => DateTime.TryParse(x.Key, out var day) && day >= DateTime.Today.AddDays(-6)).SelectMany(x => x.Value.Apps).GroupBy(x => x.Key).ToDictionary(x => x.Key, x => x.Sum(y => y.Value)) : D.Today.Apps;
+        int period = usageWeek ? 7 : 1;
+        var usage = UsageRecorder.Aggregate(D, DateTime.Today, period);
+        var hourlyUsage = UsageRecorder.Hours(D, DateTime.Today, period);
         var categories = usage.GroupBy(x => UsageCategory(x.Key)).Select(x => (Name: x.Key, Seconds: x.Sum(y => y.Value))).OrderByDescending(x => x.Seconds).ToList();
         double total = usage.Values.Sum();
         var grid = Columns(1.15, 2);
         body.Children.Add(grid);
         var left = new DockPanel { Margin = new Thickness(0, 0, 24, 0) };
-        var footer = Line($"{D.Today.AppSwitches} app switches · now: {lastForeground ?? "Idle"}", 12, Muted);
+        var footer = Line($"{UsageRecorder.Switches(D, DateTime.Today, period)} app switches · {lastForeground ?? "Idle"}", 12, Muted);
         DockPanel.SetDock(footer, Dock.Bottom);
         left.Children.Add(footer);
         var summary = Columns(1, 1.1);
@@ -193,12 +234,22 @@ public partial class Island
         Put(summary, legend, 1);
         DockPanel.SetDock(summary, Dock.Top);
         left.Children.Add(summary);
+        string chartLabel = usageWeek ? "7-day activity by hour" : "Today by hour";
+        var hourCaption = Line(chartLabel, 10, Muted);
+        hourCaption.Margin = new Thickness(0, 8, 0, 0);
+        DockPanel.SetDock(hourCaption, Dock.Top);
+        left.Children.Add(hourCaption);
         var bars = new UniformGrid { Columns = 24, VerticalAlignment = VerticalAlignment.Bottom, Height = 72, Margin = new Thickness(0, 12, 0, 12) };
-        double max = Math.Max(1, D.Today.Hourly.Values.DefaultIfEmpty(1).Max());
+        double max = Math.Max(1, hourlyUsage.Values.DefaultIfEmpty(1).Max());
         for (int i = 0; i < 24; i++)
         {
-            D.Today.Hourly.TryGetValue(i, out var value);
+            hourlyUsage.TryGetValue(i, out var value);
             var b = new Border { Background = Accent, CornerRadius = new CornerRadius(3, 3, 0, 0), Height = Math.Max(1, value / max * 66), VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(0, 0, 2, 0), ToolTip = $"{i:00}:00 · {UsageDuration(value)}" };
+            b.ToolTip = null;
+            int hour = i;
+            double recorded = value;
+            b.MouseEnter += (_, _) => hourCaption.Text = $"{hour:00}:00 · {UsageDuration(recorded)}";
+            b.MouseLeave += (_, _) => hourCaption.Text = chartLabel;
             bars.Children.Add(b);
         }
         left.Children.Add(bars);
@@ -219,7 +270,7 @@ public partial class Island
         foreach (var app in usage.OrderByDescending(x => x.Value))
         {
             var row = Columns(1.3, 1.8, .55);
-            Put(row, Line(app.Key, 14, Fg, true), 0);
+            Put(row, UsageAppLabel(app.Key), 0);
             Put(row, Progress(app.Value / Math.Max(1, usage.Values.DefaultIfEmpty(1).Max()), Accent, 7), 1);
             var duration = Line(UsageDuration(app.Value), 12, Muted);
             duration.HorizontalAlignment = HorizontalAlignment.Right;
@@ -231,13 +282,13 @@ public partial class Island
         Put(grid, right, 1);
     }
     string? lastForeground;
-    static string UsageDuration(double seconds) => seconds >= 3600 ? $"{(int)(seconds / 3600)}h {(int)(seconds % 3600 / 60)}m" : $"{(int)(seconds / 60)}m";
+    static string UsageDuration(double seconds) => UsageRecorder.Duration(seconds);
     static string UsageCategory(string app)
     {
         var name = app.ToLowerInvariant();
         if (new[] { "chrome", "edge", "firefox", "brave", "opera" }.Any(name.Contains))
             return "Browsing";
-        if (new[] { "code", "studio", "rider", "terminal", "powershell", "cmd" }.Any(name.Contains))
+        if (name == "code" || new[] { "devenv", "rider", "terminal", "powershell", "cmd" }.Any(name.Contains))
             return "Development";
         if (new[] { "photoshop", "illustrator", "figma", "blender", "premiere", "paint" }.Any(name.Contains))
             return "Creativity";
@@ -306,68 +357,69 @@ public partial class Island
     {
         var dock = new DockPanel();
         body.Children.Add(dock);
-        var bar = new DockPanel { Margin = new Thickness(0, 0, 0, 13) };
-        var tabs = Row(Btn("Devices", async () => { connectionTab = "Bluetooth"; RenderTab(); await RefreshConnections(); }, connectionTab == "Bluetooth"), Btn("Networks", async () => { connectionTab = "Wi-Fi"; RenderTab(); await RefreshConnections(); }, connectionTab == "Wi-Fi"), Pill("Add device", "plus", () => TryOpen(connectionTab == "Wi-Fi" ? "ms-settings:network-wifi" : "ms-settings:bluetooth")));
+        var bar = new DockPanel { Margin = new Thickness(0, 0, 0, 14) };
+        var tabs = Row(Btn("Devices", async () => { connectionTab = "Bluetooth"; RenderTab(); await RefreshConnections(); }, connectionTab == "Bluetooth"), Btn("Networks", async () => { connectionTab = "Wi-Fi"; RenderTab(); await RefreshConnections(); }, connectionTab == "Wi-Fi"), Pill("Scan", "plus", async () => await RefreshConnections(true)));
         DockPanel.SetDock(tabs, Dock.Right);
         bar.Children.Add(tabs);
-        var radio = Row(Pill("Wi-Fi · " + radios.GetValueOrDefault("WiFi", "Unknown"), "wifi", async () => await ToggleRadio("WiFi")), Pill("Bluetooth · " + radios.GetValueOrDefault("Bluetooth", "Unknown"), "bluetooth", async () => await ToggleRadio("Bluetooth")));
-        bar.Children.Add(radio);
+        bar.Children.Add(Row(Pill("Wi-Fi · " + radios.GetValueOrDefault("WiFi", "Unknown"), "wifi", async () => await ToggleRadio("WiFi")), Pill("Bluetooth · " + radios.GetValueOrDefault("Bluetooth", "Unknown"), "bluetooth", async () => await ToggleRadio("Bluetooth"))));
         DockPanel.SetDock(bar, Dock.Top);
         dock.Children.Add(bar);
-        var foot = new DockPanel { Margin = new Thickness(0, 12, 0, 0) };
-        var controls = Row(Pill("Refresh", "refresh", async () => await RefreshConnections()), Pill(connectionTab == "Wi-Fi" ? "Wi-Fi settings" : "Bluetooth settings", "settings", () => TryOpen(connectionTab == "Wi-Fi" ? "ms-settings:network-wifi" : "ms-settings:bluetooth")));
-        DockPanel.SetDock(controls, Dock.Right);
-        foot.Children.Add(controls);
-        foot.Children.Add(T(connectionTab == "Wi-Fi" ? ConnectedWifi() : $"{devices.Count(d => d.State == "Connected")} connected · {devices.Count} paired", 12, Muted));
-        DockPanel.SetDock(foot, Dock.Bottom);
-        dock.Children.Add(foot);
-        var content = new DockPanel();
+        var footer = new DockPanel { Margin = new Thickness(0, 12, 0, 0) };
+        var tools = Row(Pill("Refresh", "refresh", async () => await RefreshConnections()), Pill("Sound devices", "headphones", () => ShowAudioDevices()));
+        DockPanel.SetDock(tools, Dock.Right);
+        footer.Children.Add(tools);
+        footer.Children.Add(T(connectionTab == "Wi-Fi" ? ConnectedWifi() : $"{bluetoothPeers.Count(d => d.Connected)} connected · {bluetoothPeers.Count(d => d.Paired)} paired", 12, Muted));
+        DockPanel.SetDock(footer, Dock.Bottom);
+        dock.Children.Add(footer);
+        var statusPanel = Col();
+        if (connectionMessage.Length > 0)
+            statusPanel.Children.Add(T(connectionMessage, 12, Accent));
         if (connectionError.Length > 0)
+            statusPanel.Children.Add(T(connectionError, 12, Brush("#FFAA86")));
+        if (statusPanel.Children.Count > 0)
         {
-            var error = T(connectionError[..Math.Min(220, connectionError.Length)], 11, Brush("#FFAA86"));
-            error.Margin = new Thickness(0, 0, 0, 10);
-            DockPanel.SetDock(error, Dock.Bottom);
-            content.Children.Add(error);
+            statusPanel.Margin = new Thickness(0, 0, 0, 12);
+            DockPanel.SetDock(statusPanel, Dock.Top);
+            dock.Children.Add(statusPanel);
         }
         var cards = new WrapPanel();
         if (connectionTab == "Bluetooth")
-        foreach (var d in devices)
-        {
-            bool connected = d.State == "Connected";
-            var p = Col(Row(Icon("headphones", 24, connected ? Fg : Muted), Space(9), Line(d.Name, 15, connected ? Fg : Muted, true)));
-            Gap(p, 18);
-            p.Children.Add(Row(new Ellipse { Width = 7, Height = 7, Fill = connected ? Brush("#27CF63") : Muted }, Space(7), T(d.State, 12, Muted)));
-            Gap(p, 14);
-            var connect = Btn(connected ? "Manage connection" : "Connect in Windows", () => TryOpen("ms-settings:bluetooth"));
-            connect.Background = connected ? Brush(S.Light ? "#DDDEE2" : "#252525") : Accent;
-            connect.Foreground = connected ? Fg : Brushes.White;
-            connect.Margin = new Thickness(0);
-            p.Children.Add(connect);
-            var card = PanelCard(p, 16);
-            card.Width = 235;
-            card.Margin = new Thickness(0, 0, 12, 12);
-            cards.Children.Add(card);
-        }
+            foreach (var peer in bluetoothPeers)
+            {
+                var p = Col(Row(Icon("headphones", 23, peer.Connected ? Fg : Muted), Space(9), Line(peer.Name, 15, Fg, true)));
+                Gap(p, 15);
+                p.Children.Add(Row(new Ellipse { Width = 7, Height = 7, Fill = peer.Connected ? Brush("#27CF63") : Muted }, Space(7), T(peer.Connected ? "Connected" : peer.Paired ? "Paired · not connected" : "Not paired", 12, Muted)));
+                Gap(p, 15);
+                var connect = Pill(deviceOperation ? "Working…" : peer.Connected ? "Disconnect" : peer.Paired ? "Connect" : "Pair & connect", peer.Connected ? "close" : "bluetooth", async () => await ConnectBluetooth(peer), !peer.Connected);
+                connect.IsEnabled = !deviceOperation;
+                p.Children.Add(connect);
+                var card = PanelCard(p, 16);
+                card.Width = 235;
+                card.Margin = new Thickness(0, 0, 12, 12);
+                cards.Children.Add(card);
+            }
         else
-        foreach (var n in networks)
-        {
-            bool connected = n.Name == ConnectedWifi();
-            var p = Col(Row(Icon("wifi", 24, connected ? Accent : Fg), Space(9), Line(n.Name, 15, Fg, true)));
-            Gap(p, 14);
-            p.Children.Add(T(connected ? "Connected" : n.Signal > 0 ? $"Signal {n.Signal}%" : "Available", 12, connected ? Accent : Muted));
-            p.Children.Add(Progress(n.Signal / 100d, Accent, 5));
-            Gap(p, 10);
-            p.Children.Add(Pill(connected ? "Network settings" : "Connect", "chevron", () => { if (connected) TryOpen("ms-settings:network-wifi"); else _ = JoinNetwork(n.Name); }, !connected));
-            var card = PanelCard(p, 16);
-            card.Width = 235;
-            card.Margin = new Thickness(0, 0, 12, 12);
-            cards.Children.Add(card);
-        }
+            foreach (var network in wifiNetworks)
+            {
+                var p = Col(Row(Icon("wifi", 23, network.Connected ? Accent : Fg), Space(9), Line(network.Name, 15, Fg, true)));
+                Gap(p, 12);
+                p.Children.Add(T(network.Connected ? "Connected" : (network.Secured ? "Secured" : "Open") + $" · {network.Signal}% signal", 12, Muted));
+                p.Children.Add(Progress(network.Signal / 100d, Accent, 6));
+                Gap(p, 10);
+                var connect = Pill(deviceOperation ? "Working…" : network.Connected ? "Disconnect" : "Connect", network.Connected ? "close" : "wifi", () => ChooseNetwork(network), !network.Connected);
+                connect.IsEnabled = !deviceOperation;
+                p.Children.Add(connect);
+                if (network.Secured && !network.Connected && network.Auth is (4 or 7 or 9))
+                    p.Children.Add(Pill("Change password", "lock", () => RequestNetworkPassword(network)));
+                var card = PanelCard(p, 16);
+                card.Width = 235;
+                card.Margin = new Thickness(0, 0, 12, 12);
+                cards.Children.Add(card);
+            }
         if (cards.Children.Count == 0)
-            content.Children.Add(EmptyState(connectionTab == "Wi-Fi" ? "wifi" : "bluetooth", "No devices found", "Refresh to scan. Windows may require location access for Wi-Fi."));
+            dock.Children.Add(EmptyState(connectionTab == "Wi-Fi" ? "wifi" : "bluetooth", connectionsBusy ? "Reading devices…" : "No devices found", connectionTab == "Bluetooth" ? "Use Scan to discover nearby classic Bluetooth devices." : "Refresh to scan. Windows location permission can be required."));
         else
-            content.Children.Add(Scroll(cards));
-        dock.Children.Add(content);
+            dock.Children.Add(Scroll(cards));
     }
     void SystemPage()
     {
@@ -404,12 +456,13 @@ public partial class Island
         var card = Card(grid, 16);
         return card;
     }
+    DateTime displayedMonth = CalendarRules.Month(DateTime.Today);
     void CalendarPage()
     {
         var grid = new Grid();
         grid.ColumnDefinitions.Add(new()
         {
-            Width = new GridLength(Math.Min(365, (Width - 116) * .4))
+            Width = new GridLength(365)
         });
         grid.ColumnDefinitions.Add(new()
         {
@@ -417,31 +470,32 @@ public partial class Island
         });
         grid.ColumnDefinitions.Add(new());
         body.Children.Add(grid);
-        var month = selectedDate.Date.AddDays(1 - selectedDate.Day);
+        var month = displayedMonth;
         var left = Col();
         var head = new DockPanel();
-        var buttons = Row(IconButton("back", () => { selectedDate = selectedDate.AddMonths(-1); RenderTab(); }, "Previous month", Muted, 15), Btn("Today", () => { selectedDate = DateTime.Today; RenderTab(); }), IconButton("chevron", () => { selectedDate = selectedDate.AddMonths(1); RenderTab(); }, "Next month", Muted, 15));
+        var buttons = Row(IconButton("back", () => { displayedMonth = displayedMonth.AddMonths(-1); RenderTab(); }, "Previous month", Muted, 15), Btn("Today", () => { selectedDate = DateTime.Today; displayedMonth = CalendarRules.Month(selectedDate); RenderTab(); }), IconButton("chevron", () => { displayedMonth = displayedMonth.AddMonths(1); RenderTab(); }, "Next month", Muted, 15));
         DockPanel.SetDock(buttons, Dock.Right);
         head.Children.Add(buttons);
         head.Children.Add(Row(T(month.ToString("MMMM"), 18, Fg, true), Space(4), T(month.Year.ToString(), 16, Muted)));
         left.Children.Add(head);
         var days = new UniformGrid { Columns = 7, Margin = new Thickness(0, 9, 0, 0) };
-        foreach (var label in new[] { "M", "T", "W", "T", "F", "S", "S" })
+        foreach (var label in new[] { "Mo", "Tu", "We", "Th", "Fr", "Sa", "Su" })
         {
             var t = T(label, 12, Muted, true);
             t.HorizontalAlignment = HorizontalAlignment.Center;
             days.Children.Add(t);
         }
-        var start = month.AddDays(-((int)month.DayOfWeek + 6) % 7);
+        var calendarDays = CalendarRules.Grid(month);
         for (int i = 0; i < 42; i++)
         {
-            var date = start.AddDays(i);
-            var button = Btn(date.Day.ToString(), () => { selectedDate = date; RenderTab(); }, date == selectedDate.Date);
+            var date = calendarDays[i];
+            var button = Btn(date.Day.ToString(), () => { selectedDate = date; displayedMonth = CalendarRules.Month(date); RenderTab(); }, date == selectedDate.Date);
             button.Padding = new Thickness(3, 5, 3, 5);
             button.Margin = new Thickness(3, 1, 3, 1);
             button.FontWeight = FontWeights.SemiBold;
-            button.Background = date == DateTime.Today ? Brush("#FF4945") : date == selectedDate.Date ? Surface : Brushes.Transparent;
-            button.Foreground = date == DateTime.Today ? Brushes.White : date.Month == month.Month ? Fg : Brush(S.Light ? "#A7A7B0" : "#505055");
+            button.Background = date == DateTime.Today ? Brush("#FF4945") : date == selectedDate.Date ? Accent : Brushes.Transparent;
+            button.Tag = new CornerRadius(12);
+            button.Foreground = date == DateTime.Today || date == selectedDate.Date ? Brushes.White : date.Month == month.Month ? Fg : Brush(S.Light ? "#A7A7B0" : "#505055");
             button.Height = 34;
             days.Children.Add(button);
         }
@@ -468,7 +522,10 @@ public partial class Island
                 var remove = IconButton("trash", () => { D.Events.Remove(e); Save(); RenderTab(); }, "Delete event", Muted, 16);
                 DockPanel.SetDock(remove, Dock.Right);
                 row.Children.Add(remove);
-                row.Children.Add(Col(T(e.Title, 16, Fg, true), T(e.Start.ToString("h:mm tt").ToLowerInvariant(), 12, Accent)));
+                var edit = IconButton("edit", () => EditEvent(e), "Edit event", Muted, 16);
+                DockPanel.SetDock(edit, Dock.Right);
+                row.Children.Add(edit);
+                row.Children.Add(Col(T(e.Title, 16, Fg, true), T(e.Start.ToString("h:mm tt").ToLowerInvariant() + (e.End is { } finish ? " – " + finish.ToString("h:mm tt").ToLowerInvariant() : ""), 12, Accent)));
                 var card = PanelCard(row, 14);
                 card.Margin = new Thickness(0, 0, 0, 10);
                 list.Children.Add(card);

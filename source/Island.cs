@@ -42,7 +42,8 @@ public class Program
             SelfTest.Diagnostics(dir);
             return;
         }
-        if(args.Contains("--visual-test")) dir=System.IO.Path.Combine(System.IO.Path.GetTempPath(), "OrbitVisualTest-" + Guid.NewGuid().ToString("N"));
+        if (args.Contains("--visual-test"))
+            dir = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "OrbitVisualTest-" + Guid.NewGuid().ToString("N"));
         using var mutex = new Mutex(true, "Local\\OrbitIsland-v01-" + Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(dir)))[..16], out bool first);
         if (!first)
             return;
@@ -62,12 +63,13 @@ public class Program
 public partial class Island : Window
 {
     readonly Store store; AppData D => store.Data; Preferences S => D.Settings;
+    Grid? designRoot; Grid? overlay; bool modalOpen; int transitionVersion;
     Grid notchScene = new(); NotchSurface notchSurface = new(); Border shell = new(); DockPanel layout = new(); StackPanel nav = new(); Grid body = new(); TextBlock status = new(); TextBlock clock = new(); Button bell = new();
-    DispatcherTimer tick = new() { Interval = TimeSpan.FromSeconds(1) }; DispatcherTimer leave = new() { Interval = TimeSpan.FromSeconds(1.4) }; Forms.NotifyIcon tray = new();
+    DispatcherTimer tick = new() { Interval = TimeSpan.FromSeconds(1) }; DispatcherTimer leave = new() { Interval = TimeSpan.FromMilliseconds(420) }; Forms.NotifyIcon tray = new();
     string tab = "Home", todoFilter = "Active", connectionTab = "Wi-Fi", notesId = ""; bool expanded, keepAwake, busyMedia; int seconds; DateTime lastTick = DateTime.UtcNow, lastWater = DateTime.Now, lastEye = DateTime.Now, lastMovement = DateTime.Now;
     DateTime selectedDate = DateTime.Today; string healthMode = ""; DateTimeOffset? healthEnd; int healthLength;
     JsonElement? media, weather; string mediaError = "", weatherError = "", connectionError = "", brightnessError = ""; int? brightness;
-    List<(string Name, int Signal)> networks = new(); List<(string Name, string State)> devices = new(); Dictionary<string, string> radios = new(); string wifiDetails = "";
+    List<(string Name, string State)> devices = new(); Dictionary<string, string> radios = new();
     (double Cpu, double Memory, double UsedGb, double TotalGb, double Rx, double Tx) metrics;
     List<double> cpuHistory = new(), memHistory = new(), rxHistory = new(); TextBlock? timerText, timerState, miniTimer, healthText; Window? settingsWindow;
 
@@ -118,13 +120,14 @@ public partial class Island : Window
         tray.ContextMenuStrip = menu;
         notchScene.MouseEnter += (_, _) => { leave.Stop(); if (!expanded && S.OpenOnHover) SetExpanded(true); };
         notchScene.MouseLeave += (_, _) => { if (S.AutoCollapse) leave.Start(); };
-        leave.Tick += (_, _) => { leave.Stop(); if (!IsMouseOver && settingsWindow == null && OwnedWindows.Count == 0) SetExpanded(false); };
-        PreviewKeyDown += (_, e) => { if (e.Key == Key.Escape) { SetExpanded(false); e.Handled = true; } if (e.Key == Key.OemComma && (Keyboard.Modifiers & ModifierKeys.Control) != 0) OpenSettings(); };
-        Closed += (_, _) => { SaveNoteDraft(); tick.Stop(); leave.Stop(); Native.UnregisterHotKey(new WindowInteropHelper(this).Handle, 1); Native.SetThreadExecutionState(0x80000000); tray.Dispose(); settingsWindow?.Close(); Save(); };
+        leave.Tick += (_, _) => { leave.Stop(); if (!IsMouseOver && settingsWindow == null && OwnedWindows.Count == 0 && !modalOpen) SetExpanded(false); };
+        PreviewKeyDown += (_, e) => { if (e.Key == Key.Escape) { if (modalOpen) CloseOverlay(); else SetExpanded(false); e.Handled = true; } if (e.Key == Key.OemComma && (Keyboard.Modifiers & ModifierKeys.Control) != 0) OpenSettings(); };
+        Closed += (_, _) => { RecordUsage(); SaveNoteDraft(); tick.Stop(); leave.Stop(); Native.UnregisterHotKey(new WindowInteropHelper(this).Handle, 1); Native.SetThreadExecutionState(0x80000000); tray.Dispose(); mediaSessions.Dispose(); settingsWindow?.Close(); Save(); };
+        mediaSessions.Changed += () => Dispatcher.BeginInvoke(new Action(async () => await RefreshMedia()));
         tick.Tick += Tick;
         tick.Start();
         SetExpanded(open);
-        Loaded += async (_, _) => { if (store.RecoveryWarning != null) Notify("Data recovered", store.RecoveryWarning); await RefreshMedia(); await RefreshBrightness(); if (S.Latitude != null) await RefreshWeather(); };
+        Loaded += async (_, _) => { if (store.RecoveryWarning != null) Notify("Data recovered", store.RecoveryWarning); await RefreshMedia(); await RefreshBrightness(); await RefreshConnections(); if (S.Latitude != null) await RefreshWeather(); };
     }
     IntPtr Hook(IntPtr h, int msg, IntPtr w, IntPtr l, ref bool handled)
     {
@@ -150,13 +153,9 @@ public partial class Island : Window
         var screens = Forms.Screen.AllScreens;
         var scr = screens[Math.Clamp(S.Monitor, 0, screens.Length - 1)];
         var dpi = VisualTreeHelper.GetDpi(this);
-        Width = expanded ? Math.Min(S.Width + 60, scr.Bounds.Width / dpi.DpiScaleX - 24) : 360;
-        double contentHeight = tab switch
-        {
-            "Home" or "Dashboard" or "Pomodoro" or "System" or "Shelf" => 294,
-            _ => 402
-        };
-        Height = (expanded ? contentHeight * Math.Max(1, Math.Max(S.TextScale, S.IconSize / 18)) : 48) + 22;
+        var size = NotchLayout.Size(S.Width, scr.Bounds.Width / dpi.DpiScaleX, tab, S.TextScale, S.IconSize, expanded, modalOpen ? 500 : 0);
+        Width = size.Width;
+        Height = size.Height;
         Left = scr.Bounds.Left / dpi.DpiScaleX + (scr.Bounds.Width / dpi.DpiScaleX - Width) / 2;
         Top = scr.Bounds.Top / dpi.DpiScaleY + (S.AttachToTop ? 0 : S.Top);
         notchSurface.BottomRadius = expanded ? 38 : 18;
@@ -168,6 +167,10 @@ public partial class Island : Window
             SaveNoteDraft();
         bool animate = IsLoaded && expanded != value;
         double oldWidth = ActualWidth, oldHeight = ActualHeight, oldLeft = Left;
+        BeginAnimation(WidthProperty, null);
+        BeginAnimation(HeightProperty, null);
+        BeginAnimation(LeftProperty, null);
+        transitionVersion++;
         Title = S.Name;
         tray.Text = (S.Name + " · Alt+Shift+O")[..Math.Min(63, (S.Name + " · Alt+Shift+O").Length)];
         expanded = value;
@@ -182,15 +185,17 @@ public partial class Island : Window
         Place();
         Build();
         if (animate)
+            AnimateBounds(oldWidth, oldHeight, oldLeft);
+    }
+    void AnimateBounds(double fromWidth, double fromHeight, double fromLeft)
+    {
+        if (!IsLoaded || fromWidth <= 0 || !SystemParameters.ClientAreaAnimation)
+            return;
+        var easing = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut };
+        foreach (var pair in new[] { (WidthProperty, fromWidth), (HeightProperty, fromHeight), (LeftProperty, fromLeft) })
         {
-            var easing = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut };
-            void Transition(DependencyProperty property, double from, double to)
-            {
-                BeginAnimation(property, new System.Windows.Media.Animation.DoubleAnimation(from, to, TimeSpan.FromMilliseconds(180)) { EasingFunction = easing, FillBehavior = System.Windows.Media.Animation.FillBehavior.Stop });
-            }
-            Transition(WidthProperty, oldWidth, Width);
-            Transition(HeightProperty, oldHeight, Height);
-            Transition(LeftProperty, oldLeft, Left);
+            double target = (double)GetAnimationBaseValue(pair.Item1);
+            BeginAnimation(pair.Item1, new System.Windows.Media.Animation.DoubleAnimation(pair.Item2, target, TimeSpan.FromMilliseconds(260)) { EasingFunction = easing, FillBehavior = System.Windows.Media.Animation.FillBehavior.Stop });
         }
     }
     void Build()
@@ -200,7 +205,17 @@ public partial class Island : Window
         healthText = null;
         miniTimer = null;
         layout = new DockPanel { Margin = expanded ? new Thickness(28, 14, 28, 24) : new Thickness(0) };
-        shell.Child = layout;
+        if (expanded)
+        {
+            designRoot = new Grid { Width = NotchLayout.DesignWidth, Height = Math.Max(NotchLayout.DesignHeight(tab, S.TextScale, S.IconSize), modalOpen ? 500 : 0) };
+            designRoot.Children.Add(layout);
+            shell.Child = new Viewbox { Stretch = Stretch.Uniform, StretchDirection = StretchDirection.Both, Child = designRoot, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Top };
+        }
+        else
+        {
+            designRoot = null;
+            shell.Child = layout;
+        }
         if (!expanded)
         {
             var mini = new Grid { Background = Brushes.Transparent };
@@ -269,13 +284,25 @@ public partial class Island : Window
     }
     async void Go(string name)
     {
+        double beforeWidth = ActualWidth, beforeHeight = ActualHeight, beforeLeft = Left;
         if (tab == "Notes")
             SaveNoteDraft();
+        if (name == "Calendar" && tab != "Calendar")
+            displayedMonth = CalendarRules.Month(selectedDate);
         tab = name;
         expanded = true;
         Place();
         Build();
-        if (name is "Connections" or "Control")
+        AnimateBounds(beforeWidth, beforeHeight, beforeLeft);
+        AnimateBody();
+        if (name == "Weather")
+            await RefreshWeather();
+        if (name == "Control")
+        {
+            await Dispatcher.Yield(DispatcherPriority.Render);
+            await RefreshBrightness();
+        }
+        if (name is "Connections" or "Control" or "Dashboard")
             await RefreshConnections();
     }
     void RenderTab()
@@ -340,7 +367,7 @@ public partial class Island : Window
     TextBlock T(string text, double size = 14, Brush? color = null, bool bold = false) => new() { Text = text, FontSize = size * S.TextScale, Foreground = color ?? Fg, FontWeight = bold ? FontWeights.SemiBold : FontWeights.Normal, TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center };
     Button Btn(string text, Action action, bool active = false, string? tip = null)
     {
-        var b = new Button { Tag = new CornerRadius(15), Content = text, Background = active ? Brush(S.Light ? "#DDE9F5" : "#303030") : Brush(S.Light ? "#E6EBF2" : "#191919"), Foreground = Fg, ToolTip = tip ?? text };
+        var b = new Button { Tag = new CornerRadius(15), Content = text, Background = active ? Brush(S.Light ? "#DDE9F5" : "#303030") : Brush(S.Light ? "#E6EBF2" : "#191919"), Foreground = Fg, ToolTip = null };
         AutomationProperties.SetName(b, tip ?? text);
         b.Click += (_, _) => { try { action(); } catch (Exception e) { Notify("Action unavailable", e.Message); } };
         return b;
@@ -355,7 +382,7 @@ public partial class Island : Window
     }
     TextBox Input(string value = "", string hint = "", bool multiline = false)
     {
-        var b = new TextBox { Text = value, Tag = hint, Background = Surface, Foreground = Fg, BorderBrush = CardBorder, BorderThickness = new Thickness(0), ToolTip = hint, AcceptsReturn = multiline, TextWrapping = multiline ? TextWrapping.Wrap : TextWrapping.NoWrap, VerticalContentAlignment = VerticalAlignment.Center };
+        var b = new TextBox { Text = value, Tag = hint, Background = Surface, Foreground = Fg, BorderBrush = CardBorder, BorderThickness = new Thickness(0), Padding = new Thickness(16, 11, 16, 11), ToolTip = null, AcceptsReturn = multiline, TextWrapping = multiline ? TextWrapping.Wrap : TextWrapping.NoWrap, VerticalContentAlignment = VerticalAlignment.Center };
         AutomationProperties.SetName(b, hint);
         return b;
     }
@@ -373,7 +400,7 @@ public partial class Island : Window
             p.Children.Add(c);
         return p;
     }
-    Border Card(UIElement child, int padding = 18) => new() { Background = Surface, BorderBrush = CardBorder, BorderThickness = new Thickness(0), CornerRadius = new CornerRadius(22), Padding = new Thickness(padding), Child = child, Margin = new Thickness(0, 0, 12, 0) };
+    Border Card(UIElement child, int padding = 18) => new() { Background = Surface, BorderBrush = CardBorder, BorderThickness = new Thickness(0), CornerRadius = new CornerRadius(22), ClipToBounds = true, Padding = new Thickness(padding), Child = child, Margin = new Thickness(0, 0, 12, 0) };
     Grid Columns(params double[] widths)
     {
         var g = new Grid();
@@ -427,6 +454,25 @@ public partial class Island : Window
         }
         catch (Exception e) { Notify("Could not open", e.Message); }
     }
+    readonly UsageRecorder usageRecorder = new();
+    void RecordUsage()
+    {
+        if (!S.TrackApps)
+        {
+            usageRecorder.Sample(D, DateTimeOffset.Now, null, false);
+            lastForeground = "Tracking paused";
+            return;
+        }
+        var sample = Native.ForegroundSample(mediaSnapshot?.Status == "Playing" ? mediaSessions.PlayingSourceId : null);
+        lastForeground = sample.Label;
+        if (sample.Key != null)
+        {
+            D.AppLabels[sample.Key] = sample.Label;
+            if (sample.Path != null)
+                D.AppPaths[sample.Key] = sample.Path;
+        }
+        usageRecorder.Sample(D, DateTimeOffset.Now, sample.Key, S.TrackApps);
+    }
     async void Tick(object? sender, EventArgs e)
     {
         var now = DateTime.UtcNow;
@@ -436,23 +482,7 @@ public partial class Island : Window
         clock.Text = expanded ? DateTime.Now.ToString("ddd, dd MMM · HH:mm") : DateTime.Now.ToString("h:mm tt").ToLowerInvariant();
         if (keepAwake)
             Native.SetThreadExecutionState(0x80000001);
-        if (S.TrackApps)
-        {
-            var app = Native.ForegroundApp();
-            if (app != null)
-            {
-                var day = D.Today;
-                if (lastForeground != app)
-                {
-                    day.AppSwitches++;
-                    lastForeground = app;
-                }
-                day.Hourly.TryGetValue(DateTime.Now.Hour, out var hourSeconds);
-                day.Hourly[DateTime.Now.Hour] = hourSeconds + elapsed;
-                day.Apps.TryGetValue(app, out var old);
-                day.Apps[app] = old + elapsed;
-            }
-        }
+        RecordUsage();
         if (D.Timer.Running && D.Timer.Mode != "Stopwatch" && TimerSeconds() <= 0)
         {
             D.Timer.Running = false;
@@ -536,11 +566,15 @@ public partial class Island : Window
             if (tab == "System" && expanded)
                 RenderTab();
         }
-        if (seconds % 10 == 0 && ((expanded && (tab == "Home" || tab == "Dashboard")) || !expanded))
+        if (seconds % 2 == 0)
             await RefreshMedia();
-        if (seconds % 30 == 0)
+        if (expanded && tab == "Screen Time" && seconds % 5 == 0 && !modalOpen)
+            RenderTab();
+        if (expanded && tab == "Day Progress" && seconds % 30 == 0 && !modalOpen)
+            RenderTab();
+        if (seconds % 15 == 0)
         {
-            if (expanded && tab is "Connections" or "Control")
+            if (expanded && tab is "Connections" or "Control" or "Dashboard")
                 await RefreshConnections();
             if (S.SystemNotifications)
                 await RefreshSystemNotifications();
@@ -570,6 +604,8 @@ public partial class Island : Window
         return t.TotalHours >= 1 ? $"{(int)t.TotalHours}:{t.Minutes:00}:{t.Seconds:00}" : $"{(int)t.TotalMinutes:00}:{t.Seconds:00}";
     }
     static string BreathCue(int seconds) => seconds % 14 < 4 ? "Breathe in" : seconds % 14 < 8 ? "Hold gently" : "Breathe out";
+    readonly MediaSessions mediaSessions = new(); MediaSnapshot? mediaSnapshot, displayedMedia;
+    Slider? mediaTimeline; TextBlock? mediaElapsedText, mediaRemainingText; bool mediaScrubbing, mediaActionBusy;
     async Task RefreshMedia()
     {
         if (busyMedia)
@@ -577,24 +613,85 @@ public partial class Island : Window
         busyMedia = true;
         try
         {
-            media = await Native.Broker("media");
+            mediaSnapshot = await mediaSessions.Read();
+            media = System.Text.Json.JsonSerializer.SerializeToElement(new
+            {
+                available = mediaSnapshot.Available,
+                title = mediaSnapshot.Title,
+                artist = mediaSnapshot.Artist,
+                source = mediaSnapshot.Source,
+                status = mediaSnapshot.Status,
+                position = mediaSnapshot.Position,
+                duration = mediaSnapshot.Duration,
+                art = mediaSnapshot.Art
+            });
             mediaError = "";
         }
-        catch (Exception ex) { media = null; mediaError = ex.Message; }
+        catch (Exception e) { mediaError = e.Message; mediaSnapshot = null; media = null; }
         finally { busyMedia = false; }
-        if (expanded && tab == "Home")
+        if (expanded && tab == "Home" && !mediaScrubbing && !modalOpen)
+        {
+            var a = displayedMedia;
+            var b = mediaSnapshot;
+            if (a == null || b == null || a.Available != b.Available || a.Title != b.Title || a.Artist != b.Artist || a.SourceKey != b.SourceKey || a.Status != b.Status || a.Art != b.Art || a.CanToggle != b.CanToggle || a.CanSeek != b.CanSeek || a.CanNext != b.CanNext || a.CanPrevious != b.CanPrevious)
+                RenderTab();
+            else
+            {
+                if (mediaTimeline != null)
+                {
+                    mediaTimeline.Maximum = Math.Max(1, b.Duration);
+                    mediaTimeline.Value = b.Position;
+                }
+                if (mediaElapsedText != null)
+                    mediaElapsedText.Text = MediaTime(b.Position);
+                if (mediaRemainingText != null)
+                    mediaRemainingText.Text = b.Duration > 0 ? "-" + MediaTime(b.Duration - b.Position) : "0:00";
+            }
+        }
+    }
+    async System.Threading.Tasks.Task MediaCommand(string command, double position = 0, string? token = null)
+    {
+        if (mediaActionBusy)
+            return;
+        mediaActionBusy = true;
+        try
+        {
+            await mediaSessions.Execute(command, position, token ?? mediaSnapshot?.Token);
+            await RefreshMedia();
+        }
+        catch (Exception e) { ShowIslandError("Media control", e.Message); }
+        finally { mediaActionBusy = false; }
+    }
+    bool useDdc; string brightnessDisplayId = "";
+    async Task RefreshBrightness()
+    {
+        var window = new WindowInteropHelper(this).Handle;
+        try
+        {
+            brightness = await Task.Run(() => Native.MonitorBrightness(window));
+            useDdc = true;
+            brightnessError = "";
+        }
+        catch { try { brightnessDisplayId = Native.MonitorInstanceId(window); var result = await Native.Broker("brightness", 50, brightnessDisplayId); brightness = result.GetProperty("value").GetInt32(); useDdc = false; brightnessError = ""; } catch (Exception e) { brightness = null; brightnessError = e.Message; } }
+        if (expanded && tab == "Control")
             RenderTab();
     }
-    async Task RefreshBrightness()
+    async Task SetBrightness(int value)
     {
         try
         {
-            var b = await Native.Broker("brightness");
-            brightness = b.GetProperty("value").GetInt32();
+            if (useDdc)
+            {
+                var window = new WindowInteropHelper(this).Handle;
+                brightness = await Task.Run(() => Native.MonitorBrightness(window, value));
+            }
+            else
+            {
+                await Native.Broker("setbrightness", value, brightnessDisplayId);
+                brightness = value;
+            }
         }
-        catch (Exception e) { brightness = null; brightnessError = e.Message; }
-        if (expanded && tab == "Control")
-            RenderTab();
+        catch (Exception e) { ShowIslandError("Brightness", e.Message); }
     }
     string MediaString(string key, string fallback = "")
     {
@@ -623,24 +720,6 @@ public partial class Island : Window
 
     FrameworkElement Progress(double value, Brush color, double height = 7)
     {
-        var g = new Grid { Height = height, ClipToBounds = true, Margin = new Thickness(0, 5, 0, 5) };
-        g.Children.Add(new Border { Background = CardBorder, CornerRadius = new CornerRadius(height) });
-        var fill = new Border { Background = color, CornerRadius = new CornerRadius(height), HorizontalAlignment = HorizontalAlignment.Left };
-        g.Children.Add(fill);
-        g.SizeChanged += (_, _) => fill.Width = Math.Max(0, g.ActualWidth * Math.Clamp(value, 0, 1));
-        return g;
+        return new RoundedProgress { Height = height, Value = double.IsFinite(value) ? Math.Clamp(value, 0, 1) : 0, Fill = color, Track = CardBorder, Timeline = height > 30, Margin = new Thickness(0, 5, 0, 5) };
     }
-
-
-
-
 }
-
-
-
-
-
-
-
-
-

@@ -1,0 +1,1 @@
+Lucide icons from lucide-static 0.468.0 (https://github.com/lucide-icons/lucide), fetched 2026-10-30. Original SVG geometries converted to WPF path data. See Lucide-LICENSE.txt for ISC and applicable attribution. These are cross-platform icons, not Apple SF Symbols.

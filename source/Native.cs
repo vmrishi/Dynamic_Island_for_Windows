@@ -11,7 +11,7 @@ using System.Threading.Tasks;
 using Microsoft.Win32;
 namespace OrbitIsland;
 
-public static class Native
+public static partial class Native
 {
     [DllImport("user32.dll")] public static extern bool RegisterHotKey(IntPtr h, int id, uint modifiers, uint key);
     [DllImport("user32.dll")] public static extern bool UnregisterHotKey(IntPtr h, int id);
@@ -48,7 +48,7 @@ public static class Native
         GetWindowThreadProcessId(GetForegroundWindow(), out var pid);
         try
         {
-            var p = Process.GetProcessById((int)pid);
+            using var p = Process.GetProcessById((int)pid);
             if (p.ProcessName is "OrbitIsland" or "Idle" or "LockApp")
                 return null;
             return p.ProcessName;
@@ -112,9 +112,9 @@ public static class Native
         var error = await err;
         return (p.ExitCode, string.IsNullOrWhiteSpace(output) ? error : output);
     }
-    public static async Task<JsonElement> Broker(string action, int value = 50)
+    public static async Task<JsonElement> Broker(string action, int value = 50, string displayId = "")
     {
-        var r = await Run(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), "WindowsPowerShell/v1.0/powershell.exe"), "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", Path.Combine(AppContext.BaseDirectory, "Broker.ps1"), "-Action", action, "-Value", value.ToString());
+        var r = await Run(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), "WindowsPowerShell/v1.0/powershell.exe"), "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", Path.Combine(AppContext.BaseDirectory, "Broker.ps1"), "-Action", action, "-Value", value.ToString(), "-DisplayId", displayId);
         try
         {
             using var json = JsonDocument.Parse(r.Output);
@@ -191,7 +191,7 @@ public static class Native
     [ComImport, Guid("A95664D2-9614-4F35-A746-DE8DB63617E6"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
     interface IMMDeviceEnumerator
     {
-        [PreserveSig] int EnumAudioEndpoints(int flow, int mask, out IntPtr devices); [PreserveSig] int GetDefaultAudioEndpoint(int flow, int role, out IMMDevice device);
+        [PreserveSig] int EnumAudioEndpoints(int flow, int mask, out IMMDeviceCollection devices); [PreserveSig] int GetDefaultAudioEndpoint(int flow, int role, out IMMDevice device);
     }
     [ComImport, Guid("D666063F-1587-4E43-81F1-B948E807363F"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
     interface IMMDevice

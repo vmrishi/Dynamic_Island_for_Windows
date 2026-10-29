@@ -33,7 +33,7 @@ public partial class Island
         grid.ColumnDefinitions.Add(new());
         w.Content = grid;
         var sidebar = new DockPanel { Margin = new Thickness(14, 22, 14, 18) };
-        var brand = Col(Row(new Border { Width = 39, Height = 39, CornerRadius = new CornerRadius(12), Background = new LinearGradientBrush(Color.FromRgb(64, 40, 109), Color.FromRgb(13, 11, 28), 90), Child = Icon("AI Chat", 23, Brush("#C197FF")) }, Space(13), Col(T("Orbit", 19, Fg, true), T("v0.3.1 · Windows notch", 11, Muted))));
+        var brand = Col(Row(new Border { Width = 39, Height = 39, CornerRadius = new CornerRadius(12), Background = new LinearGradientBrush(Color.FromRgb(64, 40, 109), Color.FromRgb(13, 11, 28), 90), Child = Icon("AI Chat", 23, Brush("#C197FF")) }, Space(13), Col(T("Orbit", 19, Fg, true), T("v0.4 · Windows notch", 11, Muted))));
         Gap(brand, 22);
         var search = Input("", "Search settings");
         search.Height = 37;
@@ -106,7 +106,7 @@ public partial class Island
                 b.HorizontalContentAlignment = HorizontalAlignment.Stretch;
                 b.VerticalContentAlignment = VerticalAlignment.Top;
                 b.Padding = new Thickness(17);
-                b.Height = 118;
+                b.Height = 118 * Math.Max(1, S.TextScale);
                 b.Margin = new Thickness(0, 0, 12, 12);
                 cards.Children.Add(b);
             }
@@ -237,12 +237,12 @@ public partial class Island
             capture.Click += async (_, _) => { S.SystemNotifications = capture.IsChecked == true; Save(); if (S.SystemNotifications) await RefreshSystemNotifications(); capture.IsChecked = S.SystemNotifications; };
             p.Children.Add(capture);
             Gap(p, 20);
-            p.Children.Add(Pill("Windows notification settings", "external", () => TryOpen("ms-settings:notifications")));
+            p.Children.Add(T("Windows notification capture may require a packaged app identity and explicit operating-system permission. Orbit reports an access error here if unavailable.", 13, Muted));
             return p;
         }
         if (name == "Screen Time")
         {
-            var p = SettingsHeading("Screen Time", "Screen Time", "Record foreground process names and active time. Tracking begins when enabled; previous Windows usage history is not imported. Idle periods longer than five minutes are excluded.");
+            var p = SettingsHeading("Screen Time", "Screen Time", "Record foreground process names and active time. Tracking begins when enabled; previous Windows usage history is not imported. Idle periods over 60 seconds and long/suspend polling gaps are excluded. An actively playing foreground media session is kept active.");
             var track = Check("Track app usage on this PC", S.TrackApps);
             track.Click += (_, _) => { S.TrackApps = track.IsChecked == true; Save(); if (tab == "Screen Time") RenderTab(); };
             p.Children.Add(track);
@@ -267,7 +267,7 @@ public partial class Island
         if (name == "About")
         {
             var p = SettingsHeading("Home", "Orbit Island", "A native C#/.NET Windows notch app, redesigned using your Poni screenshots as a visual reference.");
-            p.Children.Add(T("Version 0.3.1 · portable Windows x64", 17, Fg, true));
+            p.Children.Add(T("Version 0.4 · portable Windows x64", 17, Fg, true));
             Gap(p, 20);
             p.Children.Add(Pill("Poni reference website", "external", () => TryOpen("https://poni.web.id/en/")));
             Gap(p, 10);
@@ -275,12 +275,12 @@ public partial class Island
             Gap(p, 25);
             p.Children.Add(T("Windows integration limits", 18, Fg, true));
             Gap(p, 12);
-            p.Children.Add(T("New Wi-Fi setup and Bluetooth audio switching open Windows Settings. Temperature is unavailable without a compatible sensor provider. Calendar events are local with basic ICS import/export. AI Chat uses Ollama. System notification access may require packaged app identity. This project is independent of Poni.", 13, Muted));
+            p.Children.Add(T("Wi-Fi supports saved profiles and personal-network password entry. Classic Bluetooth profile connection support depends on the device and Windows driver. Temperature is unavailable without a compatible sensor provider. Calendar events are local with basic ICS import/export. AI Chat uses Ollama. System notification access may require packaged app identity. This project is independent of Poni.", 13, Muted));
             return p;
         }
         var icon = name == "Media" ? "music" : name == "Bluetooth & Wi-Fi" ? "Connections" : name;
         var destinationModule = name == "Media" ? "Home" : name == "Bluetooth & Wi-Fi" ? "Connections" : name;
-        var descriptions = new Dictionary<string, string> { { "Dashboard", "A quick overview of toggles, your forecast, apps and day progress. Choose your weather location in Weather settings." }, { "Control", "Adjust system volume and supported display brightness. Use the split Wi-Fi and Bluetooth tiles to open network and device lists." }, { "Shelf", "Drop desktop shortcuts, files or folders into the shelf. Add applications with the installed-app picker. Remove a shortcut with its × button; original files stay untouched." }, { "Todo", "Press Enter to add a task. Use the clock to set a reminder. Complete tasks with their checkbox, move them to Trash, restore them or delete them permanently." }, { "Notes", "Create a note on the left and write on the right. OK saves it. Drafts are also saved before switching notes or leaving the tab." }, { "Media", "Play media in an app that exposes Windows media sessions. Orbit shows the current track and supports previous, play/pause and next media keys." }, { "Calendar", "Manage local events and import or export basic ICS files. Google and Outlook account synchronization are not implemented." }, { "Bluetooth & Wi-Fi", "Wi-Fi uses saved Windows profiles. New networks, Bluetooth pairing and audio device switching use Windows Settings. Bluetooth connection state is read from paired classic Bluetooth devices." }, { "System", "CPU, memory, network throughput and disk are read from this PC. Temperature requires a supported sensor provider and is shown as unavailable rather than estimated." } };
+        var descriptions = new Dictionary<string, string> { { "Dashboard", "A quick overview of toggles, your forecast, apps and day progress. Choose your weather location in Weather settings." }, { "Control", "Adjust system volume and supported display brightness. Use the split Wi-Fi and Bluetooth tiles to open network and device lists." }, { "Shelf", "Drop desktop shortcuts, files or folders into the shelf. Add applications with the installed-app picker. Remove a shortcut with its × button; original files stay untouched." }, { "Todo", "Press Enter to add a task. Use the clock to set a reminder. Complete tasks with their checkbox, move them to Trash, restore them or delete them permanently." }, { "Notes", "Create a note on the left and write on the right. OK saves it. Drafts are also saved before switching notes or leaving the tab." }, { "Media", "Play media in an app that exposes Windows media sessions. Orbit shows the current track and supports previous, play/pause, next and seeking through the selected Windows media session." }, { "Calendar", "Manage local events and import or export basic ICS files. Google and Outlook account synchronization are not implemented." }, { "Bluetooth & Wi-Fi", "Wi-Fi uses saved Windows profiles. New Wi-Fi passwords and supported classic Bluetooth profile controls are handled in the island. Bluetooth pairing can require an operating-system security confirmation. Bluetooth connection state is read from paired classic Bluetooth devices." }, { "System", "CPU, memory, network throughput and disk are read from this PC. Temperature requires a supported sensor provider and is shown as unavailable rather than estimated." } };
         var generic = SettingsHeading(icon, name, descriptions.GetValueOrDefault(name, "Customize this module through its view."));
         generic.Children.Add(Pill("Open " + name, "chevron", () => { Go(destinationModule); owner.Close(); }, true));
         Gap(generic, 20);

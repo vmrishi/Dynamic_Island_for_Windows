@@ -21,7 +21,7 @@ public partial class Island
     double Number(TextBox field, double min, double max)
     {
         if (!double.TryParse(field.Text, out double v) || !double.IsFinite(v) || v < min || v > max)
-            throw new Exception($"{field.ToolTip}: enter a number from {min} to {max}.");
+            throw new Exception($"{field.Tag}: enter a number from {min} to {max}.");
         return v;
     }
     void ExportBackup()

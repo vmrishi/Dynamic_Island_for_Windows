@@ -1,22 +1,23 @@
-Orbit Island 0.3.1 validation
+Orbit Island 0.4
 
-Completed:
-- Cross-compiled Windows x64 WPF app with .NET 10 SDK.
-- Theme.xaml compiled by WPF markup compiler.
-- Ten model/geometry regression checks passed: top attachment default;
-  appearance bounds; content persistence; notch/usage timeline persistence;
-  seen-notification persistence; AI module migration; day midpoint/bedtime
-  clamps; backup recovery; locale-safe notch coordinates.
-- Portable ZIP runtime manifest and integrity verified during packaging.
+Release checks:
+- Windows x64 WPF build / compiled Theme.xaml.
+- 34 portable regression checks with built-assembly inspection:
+  persistence and recovery; notch preferences/bounds/locale coordinates;
+  previous-app attribution, switch counts, idle/excluded/paused/out-of-order
+  samples, suspend gaps, hour/midnight splits, consistent seven-day ranges,
+  duration formatting, matching foreground media sources; calendar leap dates,
+  invalid input and overnight duration; responsive bounds/aspect ratio;
+  escaped WLAN profiles and enterprise rejection; Wi-Fi/Bluetooth native x64
+  structure sizes; embedded standard icon data and compiled WPF resources.
+- Self-contained runtime/dependency manifest and ZIP integrity checked at packaging.
 
-Not executed in this Linux environment:
-- Windows GUI/screenshot comparison, animation/hover/DPI interaction.
-- Audio, Wi-Fi, Bluetooth, media thumbnail broker, actual Windows notifications.
-- Live weather requests, Ollama requests, installed-app COM picker.
+Not run on Linux:
+- WPF screen rendering, hover/click/keyboard/DPI behavior or screenshot matching.
+- Actual browser/media sessions and transport commands.
+- Bluetooth profile toggles/pairing, WLAN joins/scans, audio-policy device changes.
+- DDC/CI/WMI monitor operations, desktop screenshot capture, Windows notifications.
+- Live Open-Meteo or Ollama requests.
 
-Capture-UI.ps1 provides an isolated Windows render/screenshot check for all views.
-It is included for Windows verification, not reported as already run.
-
-0.3.1: fixed mutation of frozen Geometry.Parse result by cloning before Transform.
-Windows Capture-UI includes regression checks for collapsed/expanded clip transforms.
-These Windows-only regression checks were added but not executed on Linux.
+Windows-only visual/geometry regression checks are in Capture-UI.ps1.
+Native ABI and profile-XML checks validate structure/logic, not hardware behavior.

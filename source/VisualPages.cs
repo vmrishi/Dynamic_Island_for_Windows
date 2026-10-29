@@ -14,8 +14,16 @@ using System.Windows.Media.Imaging;
 using System.Windows.Shapes;
 public partial class Island
 {
+    string cachedArtworkText = ""; BitmapSource? cachedArtwork;
+    static string MediaTime(double seconds)
+    {
+        var span = TimeSpan.FromSeconds(Math.Max(0, Math.Floor(seconds)));
+        return span.TotalHours >= 1 ? $"{(int)span.TotalHours}:{span.Minutes:00}:{span.Seconds:00}" : $"{(int)span.TotalMinutes}:{span.Seconds:00}";
+    }
     void Home()
     {
+        displayedMedia = mediaSnapshot;
+        mediaSessions.BindToken(mediaSnapshot?.Token);
         var g = new Grid();
         g.ColumnDefinitions.Add(new()
         {
@@ -43,34 +51,51 @@ public partial class Island
             var encoded = MediaString("art");
             if (encoded.Length > 0)
             {
-                var bitmap = new BitmapImage();
-                bitmap.BeginInit();
-                bitmap.StreamSource = new MemoryStream(Convert.FromBase64String(encoded));
-                bitmap.CacheOption = BitmapCacheOption.OnLoad;
-                bitmap.EndInit();
-                art.Child = new Image { Source = bitmap, Stretch = Stretch.UniformToFill };
+                if (cachedArtwork == null || cachedArtworkText != encoded)
+                {
+                    var bitmap = new BitmapImage();
+                    bitmap.BeginInit();
+                    bitmap.StreamSource = new MemoryStream(Convert.FromBase64String(encoded));
+                    bitmap.CacheOption = BitmapCacheOption.OnLoad;
+                    bitmap.DecodePixelWidth = 180;
+                    bitmap.EndInit();
+                    bitmap.Freeze();
+                    cachedArtwork = bitmap;
+                    cachedArtworkText = encoded;
+                }
+                art.Child = new Image { Source = cachedArtwork, Stretch = Stretch.UniformToFill };
                 art.Clip = new RectangleGeometry(new Rect(0, 0, 90, 90), 18, 18);
             }
         }
         catch { }
         Put(top, art, 0);
-        var meta = Col(Line(HasMedia() ? MediaString("title", "Untitled track") : "Nothing playing", 22, Fg, true), Line(HasMedia() ? MediaString("artist") : "Play something in Spotify, YouTube, Apple Music…", 17, Muted));
+        var meta = Col(Line(HasMedia() ? MediaString("title", "Untitled track") : mediaError.Length > 0 ? "Media unavailable" : "Nothing playing", 22, Fg, true), Line(HasMedia() ? MediaString("artist") : "Play something in Spotify, YouTube, Apple Music…", 17, Muted));
         meta.VerticalAlignment = VerticalAlignment.Center;
+        meta.Children.Add(Pill(mediaSnapshot?.Source ?? "Choose source", "music", ShowMediaSources));
         Put(top, meta, 1);
         DockPanel.SetDock(top, Dock.Top);
         music.Children.Add(top);
         var transport = Col();
         Gap(transport, 10);
         var time = Columns(.4, 3.8, .4);
-        Put(time, Line(FormatTime(MediaNumber("position")), 12, Muted), 0);
+        mediaElapsedText = Line(MediaTime(MediaNumber("position")), 12, Muted);
+        Put(time, mediaElapsedText, 0);
         var duration = MediaNumber("duration");
-        Put(time, Progress(duration > 0 ? MediaNumber("position") / duration : 0, Accent, 6), 1);
-        var end = Line(FormatTime(duration), 12, Muted);
+        Put(time, MediaSeekBar(), 1);
+        var end = Line(duration > 0 ? "-" + MediaTime(duration - MediaNumber("position")) : "0:00", 12, Muted);
+        mediaRemainingText = end;
         end.HorizontalAlignment = HorizontalAlignment.Right;
         Put(time, end, 2);
         transport.Children.Add(time);
         Gap(transport, 18);
-        var keys = Row(IconButton("previous", () => Native.MediaKey(0xB1), "Previous track", HasMedia() ? Fg : Muted, 24), IconButton(MediaString("status") == "Playing" ? "pause" : "play", () => Native.MediaKey(0xB3), "Play / pause", HasMedia() ? Fg : Muted, 32), IconButton("next", () => Native.MediaKey(0xB0), "Next track", HasMedia() ? Fg : Muted, 24));
+        var mediaToken = mediaSnapshot?.Token;
+        var previous = IconButton("previous", async () => await MediaCommand("previous", 0, mediaToken), "Previous track", HasMedia() ? Fg : Muted, 24);
+        previous.IsEnabled = mediaSnapshot?.CanPrevious == true;
+        var toggle = IconButton(MediaString("status") == "Playing" ? "pause" : "play", async () => await MediaCommand("toggle", 0, mediaToken), "Play / pause", HasMedia() ? Fg : Muted, 32);
+        toggle.IsEnabled = mediaSnapshot?.CanToggle == true;
+        var next = IconButton("next", async () => await MediaCommand("next", 0, mediaToken), "Next track", HasMedia() ? Fg : Muted, 24);
+        next.IsEnabled = mediaSnapshot?.CanNext == true;
+        var keys = Row(previous, toggle, next);
         keys.HorizontalAlignment = HorizontalAlignment.Center;
         transport.Children.Add(keys);
         music.Children.Add(transport);
@@ -108,11 +133,11 @@ public partial class Island
             side.Children.Add(open);
         }
         else
-        foreach (var e in upcoming)
-        {
-            side.Children.Add(Line(e.Start.ToString("HH:mm") + "  " + e.Title, 14, Fg, true));
-            Gap(side, 8);
-        }
+            foreach (var e in upcoming)
+            {
+                side.Children.Add(Line(e.Start.ToString("HH:mm") + "  " + e.Title, 14, Fg, true));
+                Gap(side, 8);
+            }
         Put(g, side, 2);
     }
     void Dashboard()
@@ -124,16 +149,19 @@ public partial class Island
         var toggles = new UniformGrid { Columns = 4 };
         foreach (var item in new[] { ("wifi", "Wi-Fi"), ("bluetooth", "Bluetooth"), ("coffee", "Keep awake"), ("moon", "Theme"), ("mic", "Microphone"), ("volume", "Volume"), ("crop", "Screenshot"), ("lock", "Lock") })
         {
-            var b = IconButton(item.Item1, () => QuickToggle(item.Item1), item.Item2, Fg, 21);
-            b.Background = (item.Item1 == "wifi" && ConnectedWifi() != "Not connected") || (item.Item1 == "bluetooth" && devices.Any(d => d.State == "Connected")) ? Accent : Brush(S.Light ? "#DCDCE0" : "#202020");
-            b.Height = 61;
+            bool on = ToggleIsOn(item.Item1);
+            var b = IconButton(item.Item1, () => QuickToggle(item.Item1), item.Item2, on ? Brushes.Black : Fg, 21);
+            b.IsEnabled = !(radioBusy && (item.Item1 is "wifi" or "bluetooth"));
+            b.Tag = new CornerRadius(16);
+            b.Background = on ? Brushes.White : Brush(S.Light ? "#DFDFE5" : "#202022");
+            b.Height = 62;
             b.Margin = new Thickness(0, 0, 7, 8);
             b.Padding = new Thickness(8);
             toggles.Children.Add(b);
         }
         quick.Children.Add(toggles);
         Put(g, Card(quick, 16), 0);
-        var outside = Col(Row(Icon("pin", 15, Muted), Space(6), Line(S.City.Length > 0 ? S.City.ToUpperInvariant() : "WEATHER", 12, Muted, true)));
+        var outside = Col(IconLabel("pin", S.City.Length > 0 ? S.City.ToUpperInvariant() : "WEATHER", 12, Muted, true));
         Gap(outside, 14);
         if (weather != null)
         {
@@ -162,7 +190,7 @@ public partial class Island
             var name = Line(a.Item2, 10, Muted);
             name.HorizontalAlignment = HorizontalAlignment.Center;
             col.Children.Add(name);
-            var button = Btn("", () => TryOpen(a.Item3));
+            var button = Btn("", () => { if (a.Item1 == "settings") OpenSettings(); else TryOpen(a.Item3); });
             button.Content = col;
             button.Padding = new Thickness(2, 6, 2, 6);
             button.Margin = new Thickness(0);
@@ -186,12 +214,10 @@ public partial class Island
         switch (icon)
         {
             case "wifi":
-                connectionTab = "Wi-Fi";
-                Go("Connections");
+                _ = ToggleRadio("WiFi");
                 break;
             case "bluetooth":
-                connectionTab = "Bluetooth";
-                Go("Connections");
+                _ = ToggleRadio("Bluetooth");
                 break;
             case "coffee":
                 ToggleAwake();
@@ -204,14 +230,15 @@ public partial class Island
                 RenderTab();
                 break;
             case "volume":
-                Go("Control");
+                Native.ToggleMute(0);
+                RenderTab();
                 break;
             case "eye":
                 Go("Health");
                 StartHealth("Eyes", 20);
                 break;
             case "crop":
-                TryOpen("ms-screenclip:");
+                _ = CaptureScreen();
                 break;
             case "lock":
                 Save();
@@ -236,16 +263,16 @@ public partial class Island
         catch { }
         grid.Children.Add(LabeledTile("mic", muted ? "Microphone · muted" : "Microphone", () => { Native.ToggleMute(1); RenderTab(); }, muted));
         grid.Children.Add(LabeledTile("eye", "Eye breaks", () => { Go("Health"); StartHealth("Eyes", 20); }));
-        grid.Children.Add(LabeledTile("crop", "Screenshot", () => TryOpen("ms-screenclip:")));
+        grid.Children.Add(LabeledTile("crop", "Screenshot", async () => await CaptureScreen()));
         grid.Children.Add(LabeledTile("lock", "Lock", () => { Save(); Native.LockWorkStation(); }));
         DockPanel.SetDock(grid, Dock.Top);
         dock.Children.Add(grid);
         var sliders = Col();
         if (brightness != null)
-            sliders.Children.Add(SliderControl("sun", "Brightness", brightness.Value, async v => { try { await Native.Broker("setbrightness", (int)v); brightness = (int)v; } catch (Exception e) { Notify("Brightness unavailable", e.Message); } }));
+            sliders.Children.Add(SliderControl("sun", "Brightness", brightness.Value, async v => await SetBrightness((int)v)));
         else
         {
-            var unavailable = Row(Icon("sun", 22), Space(20), T("Brightness unavailable for this display", 13, Muted), Space(10), Pill("Display settings", "chevron", () => TryOpen("ms-settings:display")));
+            var unavailable = Row(Icon("sun", 22), Space(20), T("This display does not expose brightness control", 13, Muted), Space(10), Pill("Retry", "refresh", async () => await RefreshBrightness()));
             sliders.Children.Add(unavailable);
         }
         Gap(sliders, 7);
@@ -259,13 +286,13 @@ public partial class Island
                 Width = GridLength.Auto
             });
             Put(row, SliderControl("volume", "Volume", audio.Volume * 100, v => Native.SetVolume((float)(v / 100))), 0);
-            var output = IconButton("chevron", () => TryOpen("ms-settings:sound"), "Sound output settings");
+            var output = IconButton("chevron", () => ShowAudioDevices(), "Sound output settings");
             output.Background = Brush(S.Light ? "#E2E2E6" : "#222222");
             output.Margin = new Thickness(14, 0, 0, 0);
             Put(row, output, 1);
             sliders.Children.Add(row);
         }
-        catch { sliders.Children.Add(Pill("Choose a sound output", "volume", () => TryOpen("ms-settings:sound"))); }
+        catch { sliders.Children.Add(Pill("Choose a sound output", "volume", () => ShowAudioDevices())); }
         var card = PanelCard(sliders, 16);
         card.VerticalAlignment = VerticalAlignment.Bottom;
         dock.Children.Add(card);
@@ -342,6 +369,7 @@ public partial class Island
         side.Children.Add(share);
         Put(grid, side, 1);
     }
+    string todoDraft = "";
     DateTime? taskDue; string taskDueText = "09:00";
     void Todos()
     {
@@ -361,7 +389,8 @@ public partial class Island
         {
             Width = GridLength.Auto
         });
-        var input = Input("", "Add a task…");
+        var input = Input(todoDraft, "Add a task…");
+        input.TextChanged += (_, _) => todoDraft = input.Text;
         input.Height = 44;
         void Add()
         {
@@ -369,6 +398,7 @@ public partial class Island
                 return;
             D.Todos.Add(new TodoItem { Text = input.Text.Trim(), Due = taskDue });
             taskDue = null;
+            todoDraft = "";
             Save();
             RenderTab();
         }
@@ -468,7 +498,7 @@ public partial class Island
         text.FontSize = 16 * S.TextScale;
         text.Background = Brushes.Transparent;
         text.BorderThickness = new Thickness(0);
-        text.Padding = new Thickness(0);
+        text.Padding = new Thickness(12);
         text.VerticalContentAlignment = VerticalAlignment.Top;
         text.VerticalScrollBarVisibility = ScrollBarVisibility.Auto;
         text.TextChanged += (_, _) => noteDraft = text.Text;

@@ -63,6 +63,10 @@ public class Note
 }
 public class CalendarItem
 {
+    public DateTime? End
+    {
+        get; set;
+    }
     public string Id { get; set; } = Guid.NewGuid().ToString(); public string Title { get; set; } = ""; public DateTime Start
     {
         get; set;
@@ -137,10 +141,11 @@ public class TimerRecord
 }
 public class AppData
 {
+    public Dictionary<string, string> AppLabels { get; set; } = new(); public Dictionary<string, string> AppPaths { get; set; } = new();
     public Preferences Settings { get; set; } = new(); public List<TodoItem> Todos { get; set; } = new(); public List<Note> Notes { get; set; } = new(); public List<CalendarItem> Events { get; set; } = new(); public List<string> Shelf { get; set; } = new(); public List<Notice> Notices { get; set; } = new(); public List<string> SeenWindowsNotices { get; set; } = new(); public Dictionary<string, DayRecord> Days { get; set; } = new(); public TimerRecord Timer { get; set; } = new();
     [System.Text.Json.Serialization.JsonIgnore] public DayRecord Today => Day(DateTime.Today); public DayRecord Day(DateTime date)
     {
-        var key = date.ToString("yyyy-MM-dd");
+        var key = date.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
         if (!Days.ContainsKey(key))
             Days[key] = new();
         return Days[key];

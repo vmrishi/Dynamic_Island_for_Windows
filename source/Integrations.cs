@@ -35,7 +35,7 @@ public partial class Island
                 return new Image { Source = System.Windows.Interop.Imaging.CreateBitmapSourceFromHIcon(icon.Handle, Int32Rect.Empty, System.Windows.Media.Imaging.BitmapSizeOptions.FromEmptyOptions()), Width = 32, Height = 32, HorizontalAlignment = HorizontalAlignment.Left };
         }
         catch { }
-        return T("↗", 27, Accent);
+        return Icon("external", 27, Accent);
     }
     void AddInstalledApp()
     {
@@ -58,11 +58,7 @@ public partial class Island
         search.TextChanged += (_, _) => list.ItemsSource = apps.Where(x => x.Key.Contains(search.Text, StringComparison.OrdinalIgnoreCase)).OrderBy(x => x.Key).ToList();
         ShowDialog("Add application", Col(search, list), () => { if (list.SelectedItem is not KeyValuePair<string, string> chosen) throw new Exception("Select an application."); if (!D.Shelf.Contains(chosen.Value)) D.Shelf.Add(chosen.Value); Save(); RenderTab(); });
     }
-    string ConnectedWifi()
-    {
-        var m = Regex.Match(wifiDetails, @"(?m)^\s*SSID\s*:\s*(.+)$");
-        return m.Success ? m.Groups[1].Value.Trim() : "Not connected";
-    }
+    string ConnectedWifi() => connectedSsid;
     string BluetoothSummary() => devices.Any(x => x.State == "Connected") ? string.Join(", ", devices.Where(x => x.State == "Connected").Select(x => x.Name)) : "No connected device";
     bool notificationBusy;
     async Task RefreshSystemNotifications()

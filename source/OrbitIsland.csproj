@@ -1,4 +1,4 @@
 <Project Sdk="Microsoft.NET.Sdk">
-<PropertyGroup><OutputType>WinExe</OutputType><TargetFramework>net10.0-windows</TargetFramework><UseWPF>true</UseWPF><UseWindowsForms>true</UseWindowsForms><ImplicitUsings>disable</ImplicitUsings><Nullable>enable</Nullable><AssemblyName>OrbitIsland</AssemblyName><Version>0.3.1</Version></PropertyGroup>
-<ItemGroup><None Update="Broker.ps1" CopyToOutputDirectory="PreserveNewest" /></ItemGroup>
+<PropertyGroup><OutputType>WinExe</OutputType><TargetFramework>net10.0-windows10.0.19041.0</TargetFramework><UseWPF>true</UseWPF><UseWindowsForms>true</UseWindowsForms><ImplicitUsings>disable</ImplicitUsings><Nullable>enable</Nullable><AssemblyName>OrbitIsland</AssemblyName><Version>0.4.0</Version></PropertyGroup>
+<ItemGroup><EmbeddedResource Include="Assets/Icons.json" /><None Update="Broker.ps1" CopyToOutputDirectory="PreserveNewest" /></ItemGroup>
 </Project>
