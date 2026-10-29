@@ -101,7 +101,7 @@ public partial class Island : Window
         shell.Background = Brushes.Transparent;
         shell.BorderThickness = new Thickness(0);
         notchSurface.Effect = new System.Windows.Media.Effects.DropShadowEffect { BlurRadius = 22, Opacity = .32, ShadowDepth = 8 };
-        notchScene.SizeChanged += (_, _) => { if (notchScene.ActualWidth > 80 && notchScene.ActualHeight > 36) { var clip = Geometry.Parse(NotchSurface.Outline(notchScene.ActualWidth, notchScene.ActualHeight, notchSurface.BottomRadius)); clip.Transform = new TranslateTransform(-18, 0); shell.Clip = clip; } };
+        notchScene.SizeChanged += (_, _) => { if (notchScene.ActualWidth > 80 && notchScene.ActualHeight > 36) { shell.Clip = NotchSurface.CreateClip(notchScene.ActualWidth, notchScene.ActualHeight, notchSurface.BottomRadius); } };
         UseLayoutRounding = true;
         SnapsToDevicePixels = true;
         TextOptions.SetTextFormattingMode(this, TextFormattingMode.Display);

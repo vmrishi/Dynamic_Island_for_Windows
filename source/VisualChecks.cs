@@ -15,6 +15,13 @@ public partial class Island
     {
         Directory.CreateDirectory(directory);
         var results = new System.Collections.Generic.List<string>();
+        foreach(var dimensions in new[]{(Width:336d, Height:48d, Radius:18d), (Width:1116d, Height:294d, Radius:38d), (Width:1116d, Height:402d, Radius:38d)})
+        {
+            var clip = NotchSurface.CreateClip(dimensions.Width, dimensions.Height, dimensions.Radius);
+            if(!clip.IsFrozen || Math.Abs(clip.Transform.Value.OffsetX + 18) > .001)
+                throw new Exception("Notch clip is not safely transformed and frozen.");
+        }
+        results.Add("PASS: collapsed and expanded clips can be transformed without mutating frozen parsed geometry");
         foreach (var icon in VectorIcons)
             Geometry.Parse(icon.Value);
         results.Add("PASS: all vector icon paths parse");

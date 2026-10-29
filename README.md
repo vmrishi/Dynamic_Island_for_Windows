@@ -1,12 +1,16 @@
-# Orbit Island 0.3 — top-attached notch
+# Orbit Island 0.3.1 — top-attached notch
 
 A native C#/.NET Windows app. The visual layer has been rebuilt using the supplied Poni screenshots as references. Poni's reference website is https://poni.web.id/en/; Orbit is an independent app, not a copy of Poni's source code or a verified reproduction of its implementation.
 
 ## Download the portable app
 
-[Download Orbit Island v0.3 Portable — Windows x64](https://github.com/vmrishi/Dynamic_Island_for_Windows/raw/refs/heads/work/downloads/Orbit-Island-Portable-v0.3-win-x64.zip)
+[Download Orbit Island v0.3.1 Portable — Windows x64](https://github.com/vmrishi/Dynamic_Island_for_Windows/raw/refs/heads/work/downloads/Orbit-Island-Portable-v0.3.1-win-x64.zip)
 
 Extract **all** files to a writable folder, then run **OrbitIsland.exe**. No installer or separate .NET installation is required. Keep the extracted files together. Data is stored in the adjacent `Data` folder; export/import a JSON backup in Settings to transfer content from an older installation. Quit the old version from the tray before opening the new one.
+
+## Startup fix in 0.3.1
+
+Fixed the read-only geometry exception during startup and resize. The notch clip now clones the parsed geometry before applying its translation, then freezes the completed clip. Existing Data folders remain compatible.
 
 ## New interface
 
@@ -44,6 +48,6 @@ Hover to open. Move away to collapse (configurable). Esc collapses; Alt+Shift+O 
 
 Build on Windows with the .NET 10 SDK: run `Build.ps1`, or `Build-Portable.ps1` for a self-contained Windows x64 ZIP. Source includes a compiled WPF resource dictionary (`Theme.xaml`), so templates are checked by the build.
 
-Portable v0.3 was cross-compiled on Linux. Ten model/geometry regression checks passed, the Windows build passed, and the ZIP's runtime contents/integrity were checked. **Windows GUI rendering, screenshot matching, hardware behavior, media artwork and WinRT broker calls have not been executed in this environment.** This is a screenshot-guided rebuild; it is not claimed to be pixel-verified.
+Portable v0.3.1 was cross-compiled on Linux. Ten model/geometry regression checks passed, the Windows build passed, and the ZIP's runtime contents/integrity were checked. **Windows GUI rendering, screenshot matching, hardware behavior, media artwork and WinRT broker calls have not been executed in this environment.** This is a screenshot-guided rebuild; it is not claimed to be pixel-verified.
 
 Run `dotnet run --project tests/ModelTests.csproj` for portable model checks. On Windows, run `Capture-UI.ps1` beside the EXE (or in the repository after building) to render every module, validate usable layouts/icon geometry and open the screenshots folder. It uses an isolated temporary data directory. The command reports rendering failures; screenshots still need visual review. `Test.ps1` runs the existing Windows self-tests.

@@ -33,7 +33,7 @@ public partial class Island
         grid.ColumnDefinitions.Add(new());
         w.Content = grid;
         var sidebar = new DockPanel { Margin = new Thickness(14, 22, 14, 18) };
-        var brand = Col(Row(new Border { Width = 39, Height = 39, CornerRadius = new CornerRadius(12), Background = new LinearGradientBrush(Color.FromRgb(64, 40, 109), Color.FromRgb(13, 11, 28), 90), Child = Icon("AI Chat", 23, Brush("#C197FF")) }, Space(13), Col(T("Orbit", 19, Fg, true), T("v0.3 · Windows notch", 11, Muted))));
+        var brand = Col(Row(new Border { Width = 39, Height = 39, CornerRadius = new CornerRadius(12), Background = new LinearGradientBrush(Color.FromRgb(64, 40, 109), Color.FromRgb(13, 11, 28), 90), Child = Icon("AI Chat", 23, Brush("#C197FF")) }, Space(13), Col(T("Orbit", 19, Fg, true), T("v0.3.1 · Windows notch", 11, Muted))));
         Gap(brand, 22);
         var search = Input("", "Search settings");
         search.Height = 37;
@@ -267,7 +267,7 @@ public partial class Island
         if (name == "About")
         {
             var p = SettingsHeading("Home", "Orbit Island", "A native C#/.NET Windows notch app, redesigned using your Poni screenshots as a visual reference.");
-            p.Children.Add(T("Version 0.3 · portable Windows x64", 17, Fg, true));
+            p.Children.Add(T("Version 0.3.1 · portable Windows x64", 17, Fg, true));
             Gap(p, 20);
             p.Children.Add(Pill("Poni reference website", "external", () => TryOpen("https://poni.web.id/en/")));
             Gap(p, 10);

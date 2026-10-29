@@ -1,4 +1,4 @@
-Orbit Island 0.3 validation
+Orbit Island 0.3.1 validation
 
 Completed:
 - Cross-compiled Windows x64 WPF app with .NET 10 SDK.
@@ -16,3 +16,7 @@ Not executed in this Linux environment:
 
 Capture-UI.ps1 provides an isolated Windows render/screenshot check for all views.
 It is included for Windows verification, not reported as already run.
+
+0.3.1: fixed mutation of frozen Geometry.Parse result by cloning before Transform.
+Windows Capture-UI includes regression checks for collapsed/expanded clip transforms.
+These Windows-only regression checks were added but not executed on Linux.
